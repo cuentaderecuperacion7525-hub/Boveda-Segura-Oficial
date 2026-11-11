@@ -60,11 +60,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.7
-          name: Versión 1.0.7 - Rediseño visual de inicio de sesión
+          tag_name: v1.0.8
+          name: Versión 1.0.8 - Rediseño exclusivo pantalla de bienvenida
           body: |
-            Rediseño visual de la pantalla de inicio de sesión con estilo Bancomer/BBVA minimalista.
-            Nuevos botones de alta accesibilidad, icono de huella dactilar y versión oficial v1.0.7.
+            Rediseño visual exclusivo de la pantalla de bienvenida con degradado azul claro, botones esbeltos de 52 px y tipografía serif.
           files: |
             Boveda-Calculadora.apk
             version.json

@@ -1,4 +1,4 @@
-- Actualización v1.0.7: Rediseño visual de la pantalla de inicio de sesión con estilo minimalista, botones redondeados y accesibilidad.
+- Actualización v1.0.8: Rediseño visual exclusivo de la pantalla de bienvenida con degradado azul claro, botones de 52 px y tipografía serif.
 - Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
 - Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
 - Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.
