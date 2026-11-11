@@ -1,0 +1,25 @@
+{
+  "fecha": "9 de noviembre de 2026",
+  "cambios": [
+    {
+      "titulo": "Actualización v1.0.1",
+      "texto": "Ajuste de visibilidad y posición en pestañas de aplicaciones y optimización de actualizaciones."
+    },
+    {
+      "titulo": "Cifrado militar local",
+      "texto": "Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones."
+    },
+    {
+      "titulo": "Visor de documentos PDF",
+      "texto": "Renderizado local por canvas con desplazamiento continuo y carga perezosa."
+    },
+    {
+      "titulo": "Reproductor de audio",
+      "texto": "Sonido de fondo, marquesina continua y soporte de carátulas ID3."
+    },
+    {
+      "titulo": "Carpeta con PIN extra",
+      "texto": "Nueva carpeta segura protegida por un PIN independiente de 4 dígitos."
+    }
+  ]
+}

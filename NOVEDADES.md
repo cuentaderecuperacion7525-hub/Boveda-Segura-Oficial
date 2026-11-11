@@ -1,0 +1,5 @@
+- Actualización v1.0.7: Rediseño visual de la pantalla de inicio de sesión con estilo minimalista, botones redondeados y accesibilidad.
+- Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
+- Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
+- Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.
+- Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos.

@@ -1,0 +1,1126 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --theme-bg-main: #060b14;
+    --theme-bg-card: #0a121d;
+    --theme-bg-secondary: #0f172a;
+    --theme-bg-header: rgba(6, 11, 20, 0.94);
+    --theme-bg-input: #0a121d;
+    --theme-primary: #00e5ff;
+    --theme-primary-hover: #00cce6;
+    --theme-glow: rgba(0, 229, 255, 0.45);
+    --theme-text-main: #f8fafc;
+    --theme-text-muted: #94a3b8;
+    --theme-text-subtle: #64748b;
+    --theme-border: rgba(51, 65, 85, 0.75);
+  }
+
+  html.theme-switching,
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: none !important;
+    animation-duration: 0s !important;
+  }
+
+  html, body {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: var(--theme-bg-main, #060b14) !important;
+    color: var(--theme-text-main, #f8fafc) !important;
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    overscroll-behavior: none;
+  }
+  #root {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow-x: clip;
+    background-color: transparent;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.safe-top-area {
+  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.85rem);
+}
+
+.safe-top-sticky {
+  padding-top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.75rem);
+}
+
+.safe-top-header-spacer {
+  height: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 4.35rem);
+}
+
+.safe-bottom-nav {
+  bottom: max(calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.35rem), 0.5rem);
+}
+
+.safe-bottom-fab {
+  bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 4.75rem);
+}
+
+.safe-bottom-fab-menu {
+  bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 8.75rem);
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--theme-bg-main, #090d16);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border, #1e293b);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-subtle, #334155);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* ==========================================================================
+   GLOBAL THEME ENGINE FOR BÓVEDA SEGURA
+   Supports exclusively:
+   - 'cyan': Cian Neón (Tema oscuro ciber-tecnológico original)
+   - 'light': Tema Claro (Ultra limpio, alto contraste y máxima legibilidad)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   TEMA CLARO: ULTRA CLEAN LIGHT MODE
+   -------------------------------------------------------------------------- */
+
+/* 1. Base Document & Canvas */
+[data-theme="light"] html,
+[data-theme="light"] body,
+[data-theme="light"] #root,
+[data-theme="light"] [class*="bg-[#060b14]"],
+[data-theme="light"] [class*="bg-[#090d16]"],
+[data-theme="light"] [class*="bg-[#0a1220]"] {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* 2. Fixed Headers, Top Bars & Footers */
+[data-theme="light"] header.fixed,
+[data-theme="light"] header.sticky,
+[data-theme="light"] footer.fixed {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 3. Bottom Navigation Bar - Idea 1: Línea Neón Inferior (Minimal) */
+nav.fixed button.vault-nav-btn-active,
+nav.fixed button.vault-nav-btn-active span:not(.vault-nav-indicator-line) {
+  color: #00e5ff !important;
+}
+
+nav.fixed button.vault-nav-btn-active svg {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.45)) !important;
+}
+
+nav.fixed button.vault-nav-btn-active .vault-nav-indicator-line {
+  background-color: #00e5ff !important;
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.7) !important;
+}
+
+nav.fixed button.vault-nav-btn-inactive,
+nav.fixed button.vault-nav-btn-inactive span:not(.vault-nav-indicator-line) {
+  color: #64748b !important;
+}
+
+nav.fixed button.vault-nav-btn-inactive svg {
+  color: #64748b !important;
+  stroke: #64748b !important;
+  filter: none !important;
+}
+
+[data-theme="light"] nav.fixed {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+  border-top: 1px solid #e2e8f0 !important;
+  box-shadow: 0 -4px 16px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive,
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive span:not(.vault-nav-indicator-line) {
+  color: #64748b !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive svg {
+  color: #64748b !important;
+  stroke: #64748b !important;
+  filter: none !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover,
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover span:not(.vault-nav-indicator-line),
+[data-theme="light"] nav.fixed button.vault-nav-btn-inactive:hover svg {
+  color: #334155 !important;
+  stroke: #334155 !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-active,
+[data-theme="light"] nav.fixed button.vault-nav-btn-active span:not(.vault-nav-indicator-line) {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-active svg {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+  filter: none !important;
+}
+
+[data-theme="light"] nav.fixed button.vault-nav-btn-active .vault-nav-indicator-line {
+  background-color: #0284c7 !important;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.35) !important;
+}
+
+[data-theme="light"] footer.fixed button {
+  color: #334155 !important;
+}
+
+[data-theme="light"] footer.fixed button:hover {
+  color: #0f172a !important;
+}
+
+/* 4. Cards, Modals, Panels, Dialogs and List Rows */
+[data-theme="light"] [class*="bg-[#0a121d]"],
+[data-theme="light"] [class*="bg-[#0e1626]"],
+[data-theme="light"] [class*="bg-[#131c2e]"],
+[data-theme="light"] [class*="bg-[#162238]"],
+[data-theme="light"] [class*="bg-[#0b101d]"],
+[data-theme="light"] [class*="bg-[#0a1424]"],
+[data-theme="light"] [class*="bg-[#0e1a2b]"],
+[data-theme="light"] [class*="bg-[#101b2d]"],
+[data-theme="light"] [class*="bg-[#0e172a]"],
+[data-theme="light"] [class*="bg-[#0f172a]"],
+[data-theme="light"] [class*="bg-[#0b1322]"],
+[data-theme="light"] [class*="bg-[#080d19]"],
+[data-theme="light"] [class*="bg-[#1e293b]"],
+[data-theme="light"] [class*="bg-[#0d1624]"],
+[data-theme="light"] [class*="bg-[#0a111e]"],
+[data-theme="light"] [class*="bg-[#08111d]"],
+[data-theme="light"] [class*="bg-[#090f1d]"],
+[data-theme="light"] [class*="bg-[#141822]"],
+[data-theme="light"] [class*="bg-[#121214]"],
+[data-theme="light"] [class*="bg-[#0f1115]"],
+[data-theme="light"] [class*="bg-[#18181b]"],
+[data-theme="light"] [class*="bg-[#121316]"],
+[data-theme="light"] [class*="bg-slate-950"],
+[data-theme="light"] [class*="bg-slate-900"],
+[data-theme="light"] [class*="bg-zinc-950"],
+[data-theme="light"] [class*="bg-zinc-900"] {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.03) !important;
+  color: #0f172a !important;
+}
+
+/* Audio, App & Document Grid Cards with dark gradients in MainVaultView */
+[data-theme="light"] [class*="from-[#1d170e]"],
+[data-theme="light"] [class*="from-[#131c2e]"],
+[data-theme="light"] [class*="from-[#0c1829]"] {
+  background-image: none !important;
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* 5. Secondary Containers, Item Chips & Inactive Buttons */
+[data-theme="light"] [class*="bg-slate-800"],
+[data-theme="light"] [class*="bg-zinc-800"],
+[data-theme="light"] [class*="bg-slate-700"],
+[data-theme="light"] [class*="bg-zinc-700"],
+[data-theme="light"] [class*="bg-zinc-850"],
+[data-theme="light"] [class*="bg-zinc-750"],
+[data-theme="light"] [class*="bg-[#0c1626]"],
+[data-theme="light"] [class*="bg-[#111927]"],
+[data-theme="light"] [class*="bg-[#132238]"],
+[data-theme="light"] [class*="bg-indigo-950"],
+[data-theme="light"] [class*="bg-rose-950"] {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Inactive Toggle Switch Tracks in Light Mode */
+[data-theme="light"] button.rounded-full[class*="bg-slate-800"],
+[data-theme="light"] button.rounded-full[class*="bg-zinc-800"] {
+  background-color: #cbd5e1 !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Active Tabs & Action Buttons using bg-zinc-100 text-zinc-950 in Dark Mode */
+[data-theme="light"] button[class*="bg-zinc-100"] {
+  background-color: #0284c7 !important;
+  border-color: #0284c7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px -1px rgba(2, 132, 199, 0.3) !important;
+}
+
+[data-theme="light"] button[class*="bg-zinc-100"] * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* 6. Subtle Borders & Dividers in Light Mode */
+[data-theme="light"] [class*="border-slate-8"],
+[data-theme="light"] [class*="border-slate-7"],
+[data-theme="light"] [class*="border-slate-9"],
+[data-theme="light"] [class*="border-zinc-8"],
+[data-theme="light"] [class*="border-zinc-7"],
+[data-theme="light"] [class*="border-white/"],
+[data-theme="light"] [class*="border-[#1e3456]"] {
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] [class*="divide-slate-"],
+[data-theme="light"] [class*="divide-zinc-"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* 7. Headings and Bold Text */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6,
+[data-theme="light"] b,
+[data-theme="light"] strong {
+  color: #0f172a !important;
+}
+
+/* 8. Text Legibility & Contrast */
+/* Preserve crisp white text on colored/gradient action buttons */
+[data-theme="light"] button[class*="from-"],
+[data-theme="light"] button[class*="from-"] *,
+[data-theme="light"] [class*="from-blue-"],
+[data-theme="light"] [class*="from-blue-"] *,
+[data-theme="light"] button[class*="bg-gradient-"] *,
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button):not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]),
+[data-theme="light"] button[class*="bg-rose-"]:not(.grid button):not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]) *,
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button):not([class*="bg-red-500/"]):not([class*="bg-red-600/"]),
+[data-theme="light"] button[class*="bg-red-"]:not(.grid button):not([class*="bg-red-500/"]):not([class*="bg-red-600/"]) *,
+[data-theme="light"] button[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]),
+[data-theme="light"] button[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]) *,
+[data-theme="light"] button[class*="bg-blue-"]:not(.profile-change-email-btn):not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]),
+[data-theme="light"] button[class*="bg-blue-"]:not(.profile-change-email-btn):not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]) *,
+[data-theme="light"] button[class*="bg-sky-"],
+[data-theme="light"] button[class*="bg-sky-"] *,
+[data-theme="light"] button[class*="bg-purple-"],
+[data-theme="light"] button[class*="bg-purple-"] *,
+[data-theme="light"] button[class*="bg-indigo-"],
+[data-theme="light"] button[class*="bg-indigo-"] *,
+[data-theme="light"] span[class*="bg-rose-"]:not([class*="bg-rose-500/"]):not([class*="bg-rose-600/"]),
+[data-theme="light"] span[class*="bg-red-"]:not([class*="bg-red-500/"]):not([class*="bg-red-600/"]),
+[data-theme="light"] span[class*="bg-emerald-"]:not([class*="bg-emerald-500/"]):not([class*="bg-emerald-600/"]),
+[data-theme="light"] span[class*="bg-blue-"]:not([class*="bg-blue-500/"]):not([class*="bg-blue-600/"]),
+[data-theme="light"] .vault-file-type-badge,
+[data-theme="light"] .vault-file-type-badge *,
+[data-theme="light"] .bg-\[\#00e5ff\] *,
+[data-theme="light"] button.bg-\[\#00e5ff\],
+.vault-primary-bio-btn,
+.vault-primary-bio-btn *,
+[data-theme="light"] .vault-primary-bio-btn,
+[data-theme="light"] .vault-primary-bio-btn * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Botón Cambiar correo y avatar en Editar Perfil (tema claro) */
+[data-theme="light"] button.profile-change-email-btn {
+  background-color: #f0f9ff !important;
+  border-color: rgba(2, 132, 199, 0.4) !important;
+  color: #0284c7 !important;
+}
+[data-theme="light"] button.profile-change-email-btn * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+[data-theme="light"] .profile-edit-avatar-circle {
+  background-image: linear-gradient(180deg, #00d2b8 0%, #1d63e8 100%) !important;
+  color: #ffffff !important;
+}
+[data-theme="light"] .profile-edit-camera-badge {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+[data-theme="light"] .profile-edit-camera-badge svg {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+
+/* Secondary cancel/close buttons in light mode */
+[data-theme="light"] button[class*="bg-slate-800"]:not(.grid button):not(.rounded-full),
+[data-theme="light"] button[class*="bg-slate-700"]:not(.grid button):not(.rounded-full),
+[data-theme="light"] button[class*="bg-zinc-800"]:not(.grid button):not(.rounded-full) {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+}
+[data-theme="light"] button[class*="bg-slate-800"]:not(.grid button):not(.rounded-full):hover,
+[data-theme="light"] button[class*="bg-slate-700"]:not(.grid button):not(.rounded-full):hover {
+  background-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+/* Convert text-white on regular content to dark slate #0f172a */
+[data-theme="light"] [class*="text-white"]:not(.vault-file-type-badge):not(.vault-file-type-badge *):not(button[class*="from-"]):not(button[class*="from-"] *):not([class*="from-blue-"]):not([class*="from-blue-"] *):not(button[class*="bg-gradient-"] *):not(button[class*="bg-rose-"]):not(button[class*="bg-rose-"] *):not(button[class*="bg-red-"]):not(button[class*="bg-red-"] *):not(button[class*="bg-emerald-"]):not(button[class*="bg-emerald-"] *):not(button[class*="bg-blue-"]):not(button[class*="bg-blue-"] *):not(button[class*="bg-sky-"]):not(button[class*="bg-purple-"]):not(button[class*="bg-indigo-"]):not(span[class*="bg-rose-"]):not(span[class*="bg-red-"]):not(span[class*="bg-emerald-"]):not(span[class*="bg-blue-"]):not(.bg-\[\#00e5ff\] *):not(button.bg-\[\#00e5ff\]):not(button[class*="bg-zinc-100"]):not(button[class*="bg-zinc-100"] *):not(.vault-primary-bio-btn):not(.vault-primary-bio-btn *) {
+  color: #0f172a !important;
+}
+
+/* Primary text in Light mode */
+[data-theme="light"] [class*="text-slate-100"],
+[data-theme="light"] [class*="text-slate-200"],
+[data-theme="light"] [class*="text-zinc-100"],
+[data-theme="light"] [class*="text-zinc-200"] {
+  color: #1e293b !important;
+}
+
+/* Secondary descriptions, timestamps, sizes - high contrast readable Slate 600 */
+[data-theme="light"] [class*="text-slate-300"],
+[data-theme="light"] [class*="text-slate-400"],
+[data-theme="light"] [class*="text-zinc-300"],
+[data-theme="light"] [class*="text-zinc-400"] {
+  color: #475569 !important;
+}
+
+/* Muted badges and labels */
+[data-theme="light"] [class*="text-slate-500"],
+[data-theme="light"] [class*="text-zinc-500"],
+[data-theme="light"] [class*="text-slate-600"] {
+  color: #64748b !important;
+}
+
+/* Status alerts, chips, and tonal action buttons - deep legible colors in light mode */
+[data-theme="light"] [class*="text-emerald-300"],
+[data-theme="light"] [class*="text-emerald-400"] {
+  color: #047857 !important;
+}
+[data-theme="light"] [class*="bg-emerald-500/10"],
+[data-theme="light"] [class*="bg-emerald-500/15"],
+[data-theme="light"] [class*="bg-emerald-500/20"] {
+  background-color: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+[data-theme="light"] [class*="bg-emerald-500/10"] *,
+[data-theme="light"] [class*="bg-emerald-500/15"] *,
+[data-theme="light"] [class*="bg-emerald-500/20"] * {
+  color: #065f46 !important;
+  stroke: #065f46 !important;
+}
+
+[data-theme="light"] [class*="text-rose-300"],
+[data-theme="light"] [class*="text-rose-400"] {
+  color: #be123c !important;
+}
+[data-theme="light"] [class*="bg-rose-500/10"],
+[data-theme="light"] [class*="bg-rose-500/15"],
+[data-theme="light"] [class*="bg-rose-500/20"],
+[data-theme="light"] [class*="bg-rose-600/20"],
+[data-theme="light"] button.vault-reset-pink-btn {
+  background-color: #ffe4e6 !important;
+  border-color: #fb7185 !important;
+  color: #9f1239 !important;
+}
+[data-theme="light"] button[class*="bg-rose-500/20"]:hover,
+[data-theme="light"] button[class*="bg-rose-600/20"]:hover,
+[data-theme="light"] button.vault-reset-pink-btn:hover {
+  background-color: #fecdd3 !important;
+}
+[data-theme="light"] [class*="bg-rose-500/10"] *,
+[data-theme="light"] [class*="bg-rose-500/15"] *,
+[data-theme="light"] [class*="bg-rose-500/20"] *,
+[data-theme="light"] [class*="bg-rose-600/20"] *,
+[data-theme="light"] button[class*="bg-rose-500/20"] *,
+[data-theme="light"] button[class*="bg-rose-600/20"] *,
+[data-theme="light"] button.vault-reset-pink-btn,
+[data-theme="light"] button.vault-reset-pink-btn * {
+  color: #9f1239 !important;
+  stroke: #9f1239 !important;
+}
+
+[data-theme="light"] [class*="text-amber-300"],
+[data-theme="light"] [class*="text-amber-400"] {
+  color: #b45309 !important;
+}
+[data-theme="light"] [class*="bg-amber-500/10"],
+[data-theme="light"] [class*="bg-amber-500/15"],
+[data-theme="light"] [class*="bg-amber-500/20"] {
+  background-color: #fffbeb !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+[data-theme="light"] [class*="bg-amber-500/10"] *,
+[data-theme="light"] [class*="bg-amber-500/15"] *,
+[data-theme="light"] [class*="bg-amber-500/20"] * {
+  color: #92400e !important;
+  stroke: #92400e !important;
+}
+
+/* Key display boxes and code containers inside modals (excluding full-screen backdrops and badges) */
+[data-theme="light"] div[class*="bg-black/60"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-black/80"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-slate-900/60"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] div[class*="bg-slate-900/90"]:not(.fixed):not(.inset-0):not(.absolute):not(.vault-fab-backdrop),
+[data-theme="light"] [class*="bg-[#0b101d]"]:not(.fixed):not(.inset-0) {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* 9. Cyan Accents in Light Mode -> Deep Sapphire Cyan (#0284c7) for great readability */
+[data-theme="light"] [class*="text-[#00e5ff]"],
+[data-theme="light"] [class*="text-cyan-400"],
+[data-theme="light"] [class*="text-cyan-300"],
+[data-theme="light"] [class*="text-cyan-500"],
+[data-theme="light"] [class*="text-cyan-200"] {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .bg-\[\#00e5ff\],
+[data-theme="light"] [class*="bg-[#00e5ff]"]:not([class*="bg-[#00e5ff]/"]):not([class*="selection:bg-"]):not([class*="hover:bg-"]),
+[data-theme="light"] .bg-cyan-500,
+[data-theme="light"] .bg-cyan-400,
+[data-theme="light"] .bg-cyan-600 {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .bg-\[\#00e5ff\] *,
+[data-theme="light"] [class*="bg-[#00e5ff]"]:not([class*="bg-[#00e5ff]/"]):not([class*="selection:bg-"]):not([class*="hover:bg-"]) *,
+[data-theme="light"] .vault-fab-circle-primary,
+[data-theme="light"] .vault-fab-circle-primary *,
+[data-theme="light"] .vault-fab-circle-blue,
+[data-theme="light"] .vault-fab-circle-blue *,
+[data-theme="light"] .vault-fab-circle-indigo,
+[data-theme="light"] .vault-fab-circle-indigo *,
+[data-theme="light"] .vault-fab-circle-amber,
+[data-theme="light"] .vault-fab-circle-amber *,
+[data-theme="light"] .vault-fab-circle-emerald,
+[data-theme="light"] .vault-fab-circle-emerald * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+[data-theme="light"] .vault-fab-circle-docs {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .vault-fab-circle-docs,
+[data-theme="light"] .vault-fab-circle-docs * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+[data-theme="light"] [class*="bg-[#00e5ff]/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]),
+[data-theme="light"] [class*="bg-cyan-500/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]),
+[data-theme="light"] [class*="bg-cyan-400/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]),
+[data-theme="light"] [class*="bg-cyan-950/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]) {
+  background-color: rgba(2, 132, 199, 0.1) !important;
+  color: #0284c7 !important;
+}
+[data-theme="light"] [class*="bg-[#00e5ff]/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]) *,
+[data-theme="light"] [class*="bg-cyan-500/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]) *,
+[data-theme="light"] [class*="bg-cyan-400/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]) *,
+[data-theme="light"] [class*="bg-cyan-950/"]:not(body):not([class*="selection:bg-"]):not([class*="hover:bg-"]) * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+[data-theme="light"] [class*="border-[#00e5ff]"],
+[data-theme="light"] [class*="border-cyan-500"],
+[data-theme="light"] [class*="border-cyan-400"],
+[data-theme="light"] [class*="border-cyan-800"] {
+  border-color: rgba(2, 132, 199, 0.35) !important;
+}
+
+/* Gradient Action Buttons (from-[#00e5ff] / from-[#00f2fe] / inline linear-gradient) in Light Mode */
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00e5ff]"],
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00f2fe]"],
+[data-theme="light"] button[class*="from-[#00e5ff]"],
+[data-theme="light"] button[class*="from-[#00f2fe]"],
+[data-theme="light"] button[class*="from-cyan-"],
+[data-theme="light"] [class*="from-[#00e5ff]"],
+[data-theme="light"] [class*="from-[#00f2fe]"],
+[data-theme="light"] button[style*="linear-gradient"] {
+  background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px -2px rgba(2, 132, 199, 0.35) !important;
+}
+
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00e5ff]"] *,
+[data-theme="light"] [class*="bg-gradient-"][class*="from-[#00f2fe]"] *,
+[data-theme="light"] button[class*="from-[#00e5ff]"] *,
+[data-theme="light"] button[class*="from-[#00f2fe]"] *,
+[data-theme="light"] button[class*="from-cyan-"] *,
+[data-theme="light"] [class*="from-[#00e5ff]"] *,
+[data-theme="light"] [class*="from-[#00f2fe]"] *,
+[data-theme="light"] button[style*="linear-gradient"] *,
+[data-theme="light"] div[style*="linear-gradient(135deg, #00f0b5"] {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+[data-theme="light"] button[class*="from-[#00e5ff]"]:hover,
+[data-theme="light"] button[class*="from-[#00f2fe]"]:hover,
+[data-theme="light"] button[class*="from-cyan-"]:hover,
+[data-theme="light"] button[style*="linear-gradient"]:hover {
+  background-image: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%) !important;
+}
+
+[data-theme="light"] button[class*="from-[#00e5ff]"]:disabled,
+[data-theme="light"] button[class*="from-[#00e5ff]"][disabled],
+[data-theme="light"] button[class*="from-[#00f2fe]"]:disabled,
+[data-theme="light"] button[class*="from-[#00f2fe]"][disabled],
+[data-theme="light"] button[style*="linear-gradient"]:disabled,
+[data-theme="light"] button[style*="linear-gradient"][disabled] {
+  opacity: 0.55 !important;
+  background-image: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+}
+[data-theme="light"] button[style*="linear-gradient"]:disabled *,
+[data-theme="light"] button[style*="linear-gradient"][disabled] * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* 10. Light Keypad Buttons & Digits */
+[data-theme="light"] .grid button[class*="bg-slate-800"],
+[data-theme="light"] .grid button.keypad-btn-backspace {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 2px 6px -1px rgba(0, 0, 0, 0.06) !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"]:hover,
+[data-theme="light"] .grid button.keypad-btn-backspace:hover {
+  background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"] span:first-child {
+  color: #0f172a !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"] span:last-child {
+  color: #64748b !important;
+}
+[data-theme="light"] .grid button svg,
+[data-theme="light"] .grid button.keypad-btn-backspace svg,
+[data-theme="light"] .keypad-backspace-icon {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"]:disabled,
+[data-theme="light"] .grid button.keypad-btn-backspace:disabled {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  opacity: 1 !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"]:disabled svg,
+[data-theme="light"] .grid button.keypad-btn-backspace:disabled svg,
+[data-theme="light"] .grid button:disabled .keypad-backspace-icon {
+  color: #64748b !important;
+  stroke: #64748b !important;
+  opacity: 1 !important;
+}
+[data-theme="light"] .grid button[class*="bg-slate-800"] svg.text-\[\#00e5ff\],
+[data-theme="light"] .grid button[class*="bg-slate-800"] svg[class*="text-[#00e5ff]"] {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+/* Empty PIN indicator dots in Light mode */
+[data-theme="light"] .w-3\.5.h-3\.5.rounded-full[class*="bg-slate-800"] {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* 11. Light Form Inputs, Search & Dropdowns */
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not(.bg-transparent),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+[data-theme="light"] input.bg-transparent {
+  background-color: transparent !important;
+  color: #0f172a !important;
+}
+[data-theme="light"] [class*="text-[#00f0b5]"] {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+[data-theme="light"] input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* 12. Light Dialog, FAB & Modal Backdrop overlay */
+[data-theme="light"] .vault-fab-backdrop,
+[data-theme="light"] .fixed.inset-0[class*="bg-black/"],
+[data-theme="light"] [class*="bg-black/"]:not(:has(> code)) {
+  background-color: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+/* 13. Light Scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* 14. Modern Jewel Pill Update Banner in Light Theme */
+[data-theme="light"] .vault-update-banner {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #7dd3fc !important;
+  box-shadow: 0 4px 16px -2px rgba(2, 132, 199, 0.12) !important;
+}
+
+[data-theme="light"] .vault-update-banner-icon {
+  background-color: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .vault-update-banner-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .vault-update-banner-desc {
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] .vault-update-banner-btn {
+  background: linear-gradient(to right, #0284c7, #2563eb) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-update-banner-btn * {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-update-banner-close {
+  color: #64748b !important;
+}
+
+[data-theme="light"] .vault-update-banner-close:hover {
+  color: #0f172a !important;
+  background-color: #f1f5f9 !important;
+}
+
+/* 15. Botón Tonal "Editar Perfil" con alta legibilidad en modo claro y modo cian */
+[data-theme="light"] .vault-btn-edit-profile,
+html.light .vault-btn-edit-profile {
+  background-color: rgba(2, 132, 199, 0.08) !important;
+  border-color: rgba(2, 132, 199, 0.35) !important;
+  color: #0369a1 !important;
+}
+[data-theme="light"] .vault-btn-edit-profile:hover,
+html.light .vault-btn-edit-profile:hover {
+  background-color: rgba(2, 132, 199, 0.15) !important;
+}
+[data-theme="light"] .vault-btn-edit-profile *,
+html.light .vault-btn-edit-profile * {
+  color: #0369a1 !important;
+  stroke: #0369a1 !important;
+}
+
+[data-theme="cyan"] .vault-btn-edit-profile,
+html.dark .vault-btn-edit-profile {
+  background-color: rgba(0, 229, 255, 0.08) !important;
+  border-color: rgba(0, 229, 255, 0.32) !important;
+  color: #00e5ff !important;
+}
+[data-theme="cyan"] .vault-btn-edit-profile:hover,
+html.dark .vault-btn-edit-profile:hover {
+  background-color: rgba(0, 229, 255, 0.15) !important;
+}
+[data-theme="cyan"] .vault-btn-edit-profile *,
+html.dark .vault-btn-edit-profile * {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+}
+
+/* 16. Panel Flotante de 3 Puntitos ("Más") y Barra Inferior en Visor de Archivos */
+[data-theme="cyan"] .vault-more-menu-panel,
+html.dark .vault-more-menu-panel {
+  background-color: rgba(14, 22, 38, 0.96) !important;
+  border: 1px solid rgba(0, 229, 255, 0.22) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85), 0 0 24px rgba(0, 229, 255, 0.08) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="cyan"] .vault-more-menu-item,
+html.dark .vault-more-menu-item {
+  color: #f8fafc !important;
+  border-color: rgba(51, 65, 85, 0.65) !important;
+}
+
+[data-theme="cyan"] .vault-more-menu-item:hover,
+[data-theme="cyan"] .vault-more-menu-item:active,
+html.dark .vault-more-menu-item:hover,
+html.dark .vault-more-menu-item:active {
+  color: #00e5ff !important;
+  background-color: rgba(0, 229, 255, 0.08) !important;
+}
+
+[data-theme="light"] .vault-more-menu-panel,
+html.light .vault-more-menu-panel {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 16px 40px -4px rgba(15, 23, 42, 0.18), 0 4px 12px -2px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .vault-more-menu-item,
+html.light .vault-more-menu-item {
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .vault-more-menu-item:hover,
+[data-theme="light"] .vault-more-menu-item:active,
+html.light .vault-more-menu-item:hover,
+html.light .vault-more-menu-item:active {
+  color: #0284c7 !important;
+  background-color: #f0f9ff !important;
+}
+
+[data-theme="light"] footer.fixed button.vault-more-btn-active,
+[data-theme="light"] footer.fixed button.vault-more-btn-active * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+[data-theme="light"] footer.fixed button.vault-delete-btn:hover,
+[data-theme="light"] footer.fixed button.vault-delete-btn:hover * {
+  color: #e11d48 !important;
+  stroke: #e11d48 !important;
+}
+
+/* Botones flotantes del visor (Cerrar X y flechas < >) adaptados al tema */
+[data-theme="cyan"] button.vault-viewer-floating-btn,
+html.dark button.vault-viewer-floating-btn {
+  background-color: rgba(10, 18, 29, 0.78) !important;
+  border: 1px solid rgba(0, 229, 255, 0.22) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn svg,
+html.dark button.vault-viewer-floating-btn svg {
+  color: #f8fafc !important;
+  stroke: #f8fafc !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn:hover,
+html.dark button.vault-viewer-floating-btn:hover {
+  background-color: rgba(14, 22, 38, 0.95) !important;
+  border-color: rgba(0, 229, 255, 0.5) !important;
+  color: #00e5ff !important;
+}
+
+[data-theme="cyan"] button.vault-viewer-floating-btn:hover svg,
+html.dark button.vault-viewer-floating-btn:hover svg {
+  color: #00e5ff !important;
+  stroke: #00e5ff !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn,
+html.light button.vault-viewer-floating-btn {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14) !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn *,
+html.light button.vault-viewer-floating-btn * {
+  color: #0f172a !important;
+  stroke: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn:hover,
+html.light button.vault-viewer-floating-btn:hover {
+  background-color: #ffffff !important;
+  border-color: #0284c7 !important;
+  color: #0284c7 !important;
+}
+
+[data-theme="light"] button.vault-viewer-floating-btn:hover *,
+html.light button.vault-viewer-floating-btn:hover * {
+  color: #0284c7 !important;
+  stroke: #0284c7 !important;
+}
+
+/* 17. Pantalla Recupera tu PIN: texto e iconos blancos sobre azul primario sólido (#0B6FB8) */
+.pin-recovery-on-primary,
+.pin-recovery-on-primary *,
+[data-theme="light"] .pin-recovery-on-primary,
+[data-theme="light"] .pin-recovery-on-primary *,
+[data-theme="cyan"] .pin-recovery-on-primary,
+[data-theme="cyan"] .pin-recovery-on-primary * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* 18. Animaciones sutiles para flechas de Copia de Seguridad y Restauración */
+@keyframes icon-bounce-down {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3.5px);
+  }
+}
+
+@keyframes icon-bounce-up {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3.5px);
+  }
+}
+
+.anim-arrow-down {
+  animation: icon-bounce-down 1.4s ease-in-out infinite;
+}
+
+.anim-arrow-down-fast {
+  animation: icon-bounce-down 0.7s ease-in-out infinite;
+}
+
+.anim-arrow-up {
+  animation: icon-bounce-up 1.4s ease-in-out infinite;
+}
+
+.anim-arrow-up-fast {
+  animation: icon-bounce-up 0.7s ease-in-out infinite;
+}
+
+/* 19. Botón "Continuar con Google" y botón principal de registro/inicio en Tema Claro */
+[data-theme="light"] button.vault-google-auth-btn,
+html.light button.vault-google-auth-btn {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="light"] button.vault-google-auth-btn:hover,
+html.light button.vault-google-auth-btn:hover {
+  background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+}
+
+[data-theme="light"] button.vault-google-auth-btn:active,
+html.light button.vault-google-auth-btn:active {
+  background-color: #f1f5f9 !important;
+}
+
+[data-theme="light"] button.vault-google-auth-btn span,
+html.light button.vault-google-auth-btn span {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn,
+html.light button.vault-auth-submit-btn {
+  background-color: #0284c7 !important;
+  border: 1px solid #0284c7 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -2px rgba(2, 132, 199, 0.3) !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn:hover,
+html.light button.vault-auth-submit-btn:hover {
+  background-color: #0369a1 !important;
+  border-color: #0369a1 !important;
+}
+
+[data-theme="light"] button.vault-auth-submit-btn *,
+html.light button.vault-auth-submit-btn * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* 20. Video Player UI & Slider (Google Photos style: vertical white bar thumb, minimalist white controls) */
+[data-theme="light"] input.vault-video-slider,
+html.light input.vault-video-slider,
+input.vault-video-slider {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  outline: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.vault-video-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 5px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #ffffff !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s ease;
+}
+.vault-video-slider::-webkit-slider-thumb:active {
+  transform: scaleY(1.12);
+}
+.vault-video-slider::-moz-range-thumb {
+  width: 5px;
+  height: 30px;
+  border-radius: 9999px;
+  background: #ffffff !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+  cursor: pointer;
+  border: none;
+  transition: transform 0.1s ease;
+}
+.vault-video-slider::-moz-range-thumb:active {
+  transform: scaleY(1.12);
+}
+
+/* Force pure white buttons, icons, and text inside the video player in both Dark and Light themes */
+.vault-video-player-ui,
+.vault-video-player-ui *,
+[data-theme="light"] .vault-video-player-ui,
+[data-theme="light"] .vault-video-player-ui *,
+.vault-video-header,
+.vault-video-header *,
+[data-theme="light"] .vault-video-header,
+[data-theme="light"] .vault-video-header * {
+  color: #ffffff !important;
+}
+
+.vault-video-player-ui svg,
+[data-theme="light"] .vault-video-player-ui svg,
+.vault-video-header svg,
+[data-theme="light"] .vault-video-header svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.vault-video-player-ui svg.vault-video-icon-filled,
+[data-theme="light"] .vault-video-player-ui svg.vault-video-icon-filled {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+[data-theme="light"] button.vault-video-btn-minimal,
+button.vault-video-btn-minimal {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .vault-video-btn-glass,
+.vault-video-btn-glass {
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+[data-theme="light"] .vault-video-stage-black,
+.vault-video-stage-black {
+  background-color: #000000 !important;
+}
+
+/* 21. Custom Audio Player Screen (#6A3A35) & Continuous Marquee Title */
+@keyframes vault-audio-marquee {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.vault-audio-marquee-track {
+  animation-name: vault-audio-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vault-audio-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+[data-theme="light"] .vault-audio-player-screen,
+.vault-audio-player-screen {
+  background-color: #6A3A35 !important;
+  color: #F6E8E5 !important;
+}
+
+/* 22. Strict White Text & Icon Rule for Primary Biometrics Button */
+button.vault-primary-bio-btn,
+button.vault-primary-bio-btn *,
+button.vault-primary-bio-btn span,
+button.vault-primary-bio-btn svg,
+[data-theme="light"] button.vault-primary-bio-btn,
+[data-theme="light"] button.vault-primary-bio-btn *,
+[data-theme="light"] button.vault-primary-bio-btn span,
+[data-theme="light"] button.vault-primary-bio-btn svg,
+[data-theme="cyan"] button.vault-primary-bio-btn,
+[data-theme="cyan"] button.vault-primary-bio-btn *,
+[data-theme="cyan"] button.vault-primary-bio-btn span,
+[data-theme="cyan"] button.vault-primary-bio-btn svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+

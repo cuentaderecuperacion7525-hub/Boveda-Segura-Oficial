@@ -1,0 +1,10 @@
+{
+  "name": "Remix Bóveda Segura - Fotos, Videos y Apps",
+  "description": "Bóveda privada y cifrada con AES-GCM para almacenar y proteger fotos, videos y aplicaciones de forma confidencial y segura en tu dispositivo.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

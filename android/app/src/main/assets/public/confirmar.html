@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirmación de Correo - Mi Bóveda</title>
+</head>
+<body style="margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f8fafc; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; box-sizing:border-box;">
+  <div style="max-width:380px; width:100%; background:#ffffff; border:1px solid #e2e8f0; border-radius:20px; padding:32px 24px; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+    <div id="icon-box" style="width:64px; height:64px; border-radius:50%; background:#dbeafe; color:#2563eb; display:inline-flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:16px; font-weight:bold;">
+      •••
+    </div>
+    <h2 id="title" style="margin:0 0 10px 0; color:#0f172a; font-size:22px;">Verificando enlace...</h2>
+    <p id="desc" style="margin:0 0 18px 0; color:#475569; font-size:15px; line-height:1.5;">
+      Comprobando la vigencia de 5 minutos de tu enlace de seguridad.
+    </p>
+    <div id="badge" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px; color:#1d4ed8; font-size:14px; font-weight:600;">
+      Un momento por favor...
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var DB_BASE = 'https://firestore.googleapis.com/v1/projects/studio-7313343442-ab21c/databases/ai-studio-remixbvedasegura-97d4266f-3ed5-45b1-9490-cec56ba0c191/documents/email_verifications/';
+      var FIVE_MIN_MS = 5 * 60 * 1000;
+      var hash = window.location.hash || '';
+      var search = window.location.search || '';
+      var match = hash.match(/token=([a-zA-Z0-9_-]+)/) || search.match(/token=([a-zA-Z0-9_-]+)/);
+      var token = match ? match[1] : '';
+
+      var iconBox = document.getElementById('icon-box');
+      var titleEl = document.getElementById('title');
+      var descEl = document.getElementById('desc');
+      var badgeEl = document.getElementById('badge');
+
+      function showSuccess(email, name) {
+        if (iconBox) {
+          iconBox.style.background = '#dcfce7';
+          iconBox.style.color = '#16a34a';
+          iconBox.textContent = '✓';
+        }
+        if (titleEl) titleEl.textContent = '¡Correo confirmado!';
+        if (descEl) {
+          descEl.innerHTML = name
+            ? 'Hola <strong>' + name + '</strong>, tu correo <strong>' + (email || '') + '</strong> ya quedó verificado.'
+            : 'Tu correo electrónico ya quedó verificado correctamente.';
+        }
+        if (badgeEl) {
+          badgeEl.style.background = '#f0fdf4';
+          badgeEl.style.borderColor = '#bbf7d0';
+          badgeEl.style.color = '#166534';
+          badgeEl.textContent = 'Ya puedes volver a la aplicación Mi Bóveda; tu acceso se abrirá automáticamente.';
+        }
+      }
+
+      function showError(titleText, msgText, badgeText) {
+        if (iconBox) {
+          iconBox.style.background = '#fee2e2';
+          iconBox.style.color = '#dc2626';
+          iconBox.textContent = '!';
+        }
+        if (titleEl) titleEl.textContent = titleText || 'Enlace caducado';
+        if (descEl) descEl.textContent = msgText || 'Por favor solicita un nuevo código desde la aplicación.';
+        if (badgeEl) {
+          badgeEl.style.background = '#fef2f2';
+          badgeEl.style.borderColor = '#fecaca';
+          badgeEl.style.color = '#991b1b';
+          badgeEl.textContent = badgeText || 'Solicita un nuevo correo desde Mi Bóveda.';
+        }
+      }
+
+      if (!token) {
+        showError('Enlace no válido', 'No se encontró el código de confirmación en el enlace.');
+        return;
+      }
+
+      fetch(DB_BASE + encodeURIComponent(token), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (doc) {
+          if (!doc || !doc.fields) {
+            showError('Enlace no válido', 'El enlace de confirmación no existe o ya fue eliminado.');
+            return;
+          }
+          var f = doc.fields;
+          var email = (f.email && f.email.stringValue) || '';
+          var firstName = (f.firstName && f.firstName.stringValue) || 'Usuario';
+          var status = (f.status && f.status.stringValue) || '';
+          var confirmed = Boolean(f.confirmed && f.confirmed.booleanValue);
+          var createdAt = (f.createdAt && f.createdAt.stringValue) || '';
+          var pin = (f.pin && f.pin.stringValue) || '';
+
+          if (status === 'superseded') {
+            showError(
+              'Enlace cancelado',
+              'Se solicitó un código más reciente para tu correo, por lo que este enlace anterior quedó desactivado.',
+              'Abre el correo más reciente que recibiste.'
+            );
+            return;
+          }
+
+          if (confirmed || status === 'confirmed' || status === 'used') {
+            showError(
+              'Enlace ya utilizado',
+              'Este enlace es de un solo uso y ya fue utilizado anteriormente para confirmar tu cuenta.',
+              'Este enlace ya no se puede volver a usar.'
+            );
+            return;
+          }
+
+          var createdMs = Date.parse(createdAt);
+          if (status === 'expired' || !createdMs || (Date.now() - createdMs) > FIVE_MIN_MS) {
+            var expFields = {
+              token: { stringValue: token },
+              email: { stringValue: email },
+              firstName: { stringValue: firstName },
+              status: { stringValue: 'expired' },
+              confirmed: { booleanValue: false },
+              createdAt: { stringValue: createdAt || new Date().toISOString() }
+            };
+            if (pin) expFields.pin = { stringValue: pin };
+            fetch(DB_BASE + encodeURIComponent(token), {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fields: expFields })
+            }).catch(function () {});
+
+            showError(
+              'Enlace caducado (5 min)',
+              'Por seguridad, este enlace solo era válido durante 5 minutos y su tiempo ya expiró.',
+              'Regresa a Mi Bóveda y toca Reenviar código.'
+            );
+            return;
+          }
+
+          var okFields = {
+            token: { stringValue: token },
+            email: { stringValue: email },
+            firstName: { stringValue: firstName },
+            status: { stringValue: 'confirmed' },
+            confirmed: { booleanValue: true },
+            createdAt: { stringValue: createdAt }
+          };
+          if (pin) okFields.pin = { stringValue: pin };
+
+          return fetch(DB_BASE + encodeURIComponent(token), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fields: okFields })
+          }).then(function (patchRes) {
+            if (patchRes.ok) {
+              showSuccess(email, firstName);
+            } else {
+              showError('Error al confirmar', 'No se pudo actualizar la confirmación. Intenta nuevamente.');
+            }
+          });
+        })
+        .catch(function () {
+          showError('Error de conexión', 'No se pudo conectar para verificar tu enlace.');
+        });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account and profile data for Bóveda Segura",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID (auth UID)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name or display name"
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name"
+        },
+        "birthDate": {
+          "type": "string",
+          "description": "Birth date DD/MM/YYYY (optional)"
+        },
+        "age": {
+          "type": "number",
+          "description": "Calculated age in years (optional)"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address"
+        },
+        "emailVerified": {
+          "type": "boolean",
+          "description": "Whether email is verified"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Google profile photo URL"
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Provider used to authenticate (e.g. google.com)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of registration"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of last profile update"
+        }
+      },
+      "required": ["id", "firstName", "email", "emailVerified", "createdAt"]
+    },
+    "EmailVerification": {
+      "title": "Email Verification & Registered Account",
+      "description": "Pending/confirmed email PIN and link verification tokens and registered user account credentials",
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Unique verification token or account key"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Recipient email address typed by the user"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name typed by the user"
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name typed by the user"
+        },
+        "passwordHash": {
+          "type": "string",
+          "description": "Hashed password for registered account sign-in"
+        },
+        "pin": {
+          "type": "string",
+          "description": "6-digit verification PIN code"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status: pending, sending, sent, confirmed, used, superseded, expired, error, or registered_account"
+        },
+        "confirmed": {
+          "type": "boolean",
+          "description": "Whether the user confirmed via link or PIN"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "html": {
+          "type": "string",
+          "description": "Optional static confirmation HTML payload"
+        }
+      },
+      "required": ["token", "email", "firstName", "status", "confirmed", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile records indexed by auth UID"
+    },
+    "/email_verifications/{token}": {
+      "schema": "EmailVerification",
+      "description": "Email confirmation requests and registered account credentials indexed by token"
+    }
+  }
+}

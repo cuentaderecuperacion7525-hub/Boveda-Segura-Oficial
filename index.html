@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es" class="light theme-light" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      window.$RefreshReg$ = window.$RefreshReg$ || function () {};
+      window.$RefreshSig$ = window.$RefreshSig$ || function () { return function (type) { return type; }; };
+      window.__vite_plugin_react_preamble_installed__ = true;
+
+      // Silenciar y proteger contra errores de WebSocket de Vite HMR en el entorno de vista previa
+      (function() {
+        if (typeof window !== 'undefined') {
+          window.addEventListener('error', function(event) {
+            if (
+              (event.message && (event.message.includes('WebSocket') || event.message.includes('vite-hmr'))) ||
+              (event.filename && event.filename.includes('@vite/client'))
+            ) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+              return true;
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function(event) {
+            if (
+              event.reason &&
+              event.reason.message &&
+              (event.reason.message.includes('WebSocket') || event.reason.message.includes('vite-hmr') || event.reason.message.includes('@vite/client'))
+            ) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          }, true);
+
+          if (window.WebSocket) {
+            var NativeWS = window.WebSocket;
+            window.WebSocket = function(url, protocols) {
+              var isViteHmr = (protocols === 'vite-hmr') ||
+                              (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1) ||
+                              (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('@vite') !== -1));
+              if (isViteHmr) {
+                var listeners = {};
+                var dummy = {
+                  readyState: 1, // WebSocket.OPEN
+                  CONNECTING: 0,
+                  OPEN: 1,
+                  CLOSING: 2,
+                  CLOSED: 3,
+                  url: url,
+                  protocol: 'vite-hmr',
+                  extensions: '',
+                  binaryType: 'blob',
+                  bufferedAmount: 0,
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: function(type, fn) {
+                    if (!listeners[type]) listeners[type] = [];
+                    listeners[type].push(fn);
+                    if (type === 'open') {
+                      setTimeout(function() {
+                        try { fn({ type: 'open', target: dummy }); } catch (e) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function(type, fn) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function(cb) { return cb !== fn; });
+                    }
+                  },
+                  dispatchEvent: function() { return true; }
+                };
+                setTimeout(function() {
+                  if (typeof dummy.onopen === 'function') {
+                    try { dummy.onopen({ type: 'open', target: dummy }); } catch (e) {}
+                  }
+                }, 0);
+                return dummy;
+              }
+              return new NativeWS(url, protocols);
+            };
+            window.WebSocket.prototype = NativeWS.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        }
+      })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <title>Mi Bóveda - Tus archivos, siempre protegidos</title>
+    <meta name="description" content="Mi Bóveda: Bóveda privada y cifrada con AES-GCM 256 bits para almacenar y proteger fotos, videos, audio y aplicaciones en tu dispositivo." />
+    <meta property="og:title" content="Mi Bóveda - Tus archivos, siempre protegidos" />
+    <meta property="og:description" content="Mi Bóveda: Bóveda privada y cifrada con AES-GCM 256 bits para almacenar y proteger fotos, videos, audio y aplicaciones en tu dispositivo." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#f1f5f9" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Mi Bóveda" />
+    <meta name="mobile-mobile-web-app-capable" content="yes" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-100 text-slate-900 antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

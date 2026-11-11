@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check user authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'firstName', 'email', 'emailVerified', 'createdAt'])
+        && data.keys().hasOnly(['id', 'firstName', 'lastName', 'birthDate', 'age', 'email', 'emailVerified', 'photoURL', 'authProvider', 'createdAt', 'updatedAt'])
+        && data.id is string
+        && data.id.size() <= 128
+        && data.firstName is string
+        && data.firstName.size() >= 1
+        && data.firstName.size() <= 100
+        && data.email is string
+        && data.email.size() <= 150
+        && data.emailVerified is bool
+        && data.createdAt is string
+        && (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 100))
+        && (!('birthDate' in data) || (data.birthDate is string && data.birthDate.size() <= 20))
+        && (!('age' in data) || (data.age is number && data.age >= 0 && data.age <= 130))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2048))
+        && (!('authProvider' in data) || (data.authProvider is string && data.authProvider.size() <= 50))
+        && (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    function isValidEmailVerification(data) {
+      return data.keys().hasAll(['token', 'email', 'firstName', 'status', 'confirmed', 'createdAt'])
+        && data.keys().hasOnly(['token', 'email', 'firstName', 'lastName', 'passwordHash', 'pin', 'status', 'confirmed', 'createdAt', 'html'])
+        && data.token is string
+        && data.token.size() >= 1
+        && data.token.size() <= 128
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 150
+        && data.firstName is string
+        && data.firstName.size() >= 1
+        && data.firstName.size() <= 100
+        && data.status is string
+        && data.status.size() >= 1
+        && data.status.size() <= 40
+        && data.confirmed is bool
+        && data.createdAt is string
+        && data.createdAt.size() <= 60
+        && (!('lastName' in data) || (data.lastName is string && data.lastName.size() <= 100))
+        && (!('passwordHash' in data) || (data.passwordHash is string && data.passwordHash.size() <= 256))
+        && (!('pin' in data) || (data.pin is string && data.pin.size() >= 4 && data.pin.size() <= 10))
+        && (!('html' in data) || (data.html is string && data.html.size() <= 30000));
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.id == userId;
+      allow delete: if isOwner(userId);
+    }
+
+    match /email_verifications/{token} {
+      allow read: if true;
+      allow create: if isValidEmailVerification(request.resource.data) && request.resource.data.token == token;
+      allow update: if isValidEmailVerification(request.resource.data) && request.resource.data.token == token;
+      allow delete: if true;
+    }
+  }
+}
