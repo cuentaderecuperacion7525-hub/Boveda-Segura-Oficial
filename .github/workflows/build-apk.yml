@@ -60,10 +60,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.8
-          name: Versión 1.0.8 - Rediseño exclusivo pantalla de bienvenida
+          tag_name: v1.0.10
+          name: Versión 1.0.10 - Posicionamiento asentado al fondo en bienvenida
           body: |
-            Rediseño visual exclusivo de la pantalla de bienvenida con degradado azul claro, botones esbeltos de 52 px y tipografía serif.
+            Ajuste de posición inferior asentada en la pantalla de bienvenida para eliminar espacio libre sobrante.
           files: |
             Boveda-Calculadora.apk
             version.json

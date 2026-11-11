@@ -939,7 +939,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
         </div>
       ) : authViewMode === 'welcome' && isRegisteredUser ? (
         /* ==================== PANTALLA DE BIENVENIDA (ESPECIFICACIÓN EXACTA DEL USUARIO) ==================== */
-        <div className="relative w-full max-w-sm mx-auto flex flex-col justify-between items-center min-h-[85vh] py-8 px-[28px] text-center select-none animate-in fade-in duration-300">
+        <div className="relative w-full max-w-sm mx-auto flex flex-col justify-between items-center min-h-[92vh] sm:min-h-screen h-full pt-8 pb-3 px-[28px] text-center select-none animate-in fade-in duration-300">
           {/* Sin título arriba. Bloque central agrupado y centrado verticalmente */}
           <div className="w-full my-auto flex flex-col items-center justify-center text-center py-4">
             {/* Avatar circular de 72 px con degradado naranja-rojo (#F59E0B a #F0533C) y letra en azul marino #0E1940 */}
@@ -999,8 +999,8 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             )}
           </div>
 
-          {/* Parte inferior, ancho completo con márgenes de 28 px */}
-          <div className="w-full flex flex-col gap-[12px] pb-2 text-center">
+          {/* Parte inferior, ancho completo con márgenes de 28 px y posición asentada al fondo */}
+          <div className="w-full flex flex-col gap-[12px] pt-2 pb-1 text-center">
             {/* Botón principal: relleno azul marino #0E1940, 52 px de alto, esquinas muy redondeadas, texto blanco 15 px semibold, ícono huella pequeño (22 px, trazo fino) */}
             <button
               type="button"

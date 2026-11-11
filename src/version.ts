@@ -10,13 +10,13 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.8';
+export const APP_VERSION = '1.0.10';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2008;
+export const CURRENT_BUILD_NUMBER = 2010;
 export const CURRENT_RELEASE_DATE = '11 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Actualización v1.0.8: Rediseño visual exclusivo de la pantalla de bienvenida con degradado azul claro, botones de 52 px y tipografía serif.',
+  'Actualización v1.0.10: Optimización de altura y posición inferior asentada en la pantalla de bienvenida.',
   'Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.',
   'Visor de documentos PDF local integrado con renderizado por canvas.',
   'Reproductor de audio integrado con modo segundo plano y controles avanzados.',
