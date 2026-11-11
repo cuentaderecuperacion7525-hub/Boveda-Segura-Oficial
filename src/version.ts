@@ -10,13 +10,13 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.11';
+export const APP_VERSION = '1.0.12';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2011;
+export const CURRENT_BUILD_NUMBER = 2012;
 export const CURRENT_RELEASE_DATE = '11 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Actualización v1.0.11: Certificado de firma digital permanente unificado para actualizaciones automáticas en 1 clic.',
+  'Actualización v1.0.12: Control de consentimiento forzado en flujo Google y visibilidad inteligente del botón de biometría.',
   'Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.',
   'Visor de documentos PDF local integrado con renderizado por canvas.',
   'Reproductor de audio integrado con modo segundo plano y controles avanzados.',

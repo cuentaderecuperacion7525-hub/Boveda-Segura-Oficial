@@ -233,6 +233,7 @@ export async function signInWithGoogle(): Promise<{
   success: boolean;
   profile?: UserProfile;
   error?: string;
+  cancelled?: boolean;
 }> {
   return new Promise((resolve) => {
     const oauth2 = window.google?.accounts?.oauth2;

@@ -1,12 +1,12 @@
 {
-  "version": "1.0.11",
-  "version_name": "1.0.11",
-  "buildNumber": 2011,
-  "version_code": 2011,
+  "version": "1.0.12",
+  "version_name": "1.0.12",
+  "buildNumber": 2012,
+  "version_code": 2012,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "releaseDate": "11 de noviembre de 2026",
   "changelog": [
-    "Actualización v1.0.11: Certificado de firma digital permanente unificado para actualizaciones automáticas en 1 clic.",
+    "Actualización v1.0.12: Control de consentimiento forzado en flujo Google y visibilidad inteligente del botón de biometría.",
     "Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.",
     "Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.",
     "Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.",

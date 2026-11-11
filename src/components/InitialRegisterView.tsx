@@ -14,7 +14,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { userProfileService } from '../services/userProfileService';
-import { syncUserProfile } from '../services/firebaseAuthService';
+import { syncUserProfile, signInWithGoogle, signOutFromFirebase } from '../services/firebaseAuthService';
 import { signInWithNativeGoogle } from '../services/nativeGoogleAuthService';
 import {
   sendEmailPin,
@@ -386,25 +386,50 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     return () => clearInterval(interval);
   }, [step, emailInput, firstName, lastName, pendingToken, secondsLeft]);
 
-  /* ==================== BLOQUE PROTEGIDO: ACCESO NATIVO GOOGLE ==================== */
+  /* ==================== ACCESO GOOGLE CON CONTROL DE CONSENTIMIENTO ==================== */
   const handleContinueWithGoogle = async () => {
     if (isLoadingNative) return;
     setIsLoadingNative(true);
     setErrorMsg(null);
 
     try {
-      // Invocar DIRECTAMENTE los servicios nativos de Google Play en el teléfono
-      const res = await signInWithNativeGoogle();
+      // 1. Forzar revocación/limpieza de sesión previa para exigir siempre la pantalla de selección y consentimiento de Google
+      try {
+        await signOutFromFirebase();
+        if (window.google?.accounts?.id) {
+          (window.google.accounts.id as any)?.disableAutoSelect?.();
+        }
+      } catch {
+        // Continuar
+      }
 
+      // 2. Invocar selector nativo oficial de Google Play Services / Android
+      let res = await signInWithNativeGoogle();
+
+      // En entorno Web (AI Studio preview / navegador), usar el cliente OAuth2 oficial con prompt 'select_account consent'
+      if (!res.success && res.error === 'web_environment') {
+        const webRes = await signInWithGoogle();
+        if (webRes.success && webRes.profile) {
+          showToast(`Acceso autorizado para ${webRes.profile.email}`, 'success');
+          onComplete();
+          return;
+        } else if (webRes.cancelled) {
+          return;
+        } else if (webRes.error) {
+          showToast(webRes.error, 'error');
+          return;
+        }
+      }
+
+      // 3. Solo cuando el usuario selecciona la cuenta y autoriza en el cuadro de Google, pasa a la pantalla del PIN
       if (res.success && res.profile) {
         showToast(`Acceso autorizado para ${res.profile.email}`, 'success');
-        // Pasa DIRECTAMENTE a la pantalla de creación del PIN de 4 dígitos de la bóveda
         onComplete();
         return;
       }
 
       if (res.cancelled) {
-        // El usuario canceló la tarjeta oficial de Google
+        // El usuario canceló la tarjeta/cuadro oficial de Google
         return;
       }
 

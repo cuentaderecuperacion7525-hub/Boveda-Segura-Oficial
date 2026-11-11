@@ -25,6 +25,7 @@ import {
   isBiometricsEnrolled,
   isBiometricsAutoPromptEnabled,
   hasBiometricCredentials,
+  isBiometricsSupported,
   enrollBiometrics,
   authenticateWithBiometrics,
 } from '../services/biometricService';
@@ -341,7 +342,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   };
 
   // Biometric fingerprint states
-  const [isBioEnrolled, setIsBioEnrolled] = useState(() => isBiometricsAutoPromptEnabled());
+  const [isBioEnrolled, setIsBioEnrolled] = useState<boolean>(() => hasBiometricCredentials() && isBiometricsAutoPromptEnabled());
   const [isBioLoading, setIsBioLoading] = useState(false);
   const [showEnrollBioModal, setShowEnrollBioModal] = useState(false);
   const [enrollPin, setEnrollPin] = useState('');
@@ -349,7 +350,23 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   const [isEnrollingBio, setIsEnrollingBio] = useState(false);
 
   useEffect(() => {
-    setIsBioEnrolled(isBiometricsAutoPromptEnabled());
+    let isMounted = true;
+    const checkBioAvailability = async () => {
+      const hasCreds = hasBiometricCredentials();
+      const autoPrompt = isBiometricsAutoPromptEnabled();
+      if (!hasCreds || !autoPrompt) {
+        if (isMounted) setIsBioEnrolled(false);
+        return;
+      }
+      const supported = await isBiometricsSupported();
+      if (isMounted) {
+        setIsBioEnrolled(hasCreds && autoPrompt && supported);
+      }
+    };
+    checkBioAvailability();
+    return () => {
+      isMounted = false;
+    };
   }, [authViewMode]);
 
   const expectedLength = parseInt(localStorage.getItem('vault_pin_length') || '4', 10);
@@ -1001,56 +1018,81 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
           {/* Parte inferior, ancho completo con márgenes de 28 px y posición asentada al fondo */}
           <div className="w-full flex flex-col gap-[12px] pt-2 pb-1 text-center">
-            {/* Botón principal: relleno azul marino #0E1940, 52 px de alto, esquinas muy redondeadas, texto blanco 15 px semibold, ícono huella pequeño (22 px, trazo fino) */}
-            <button
-              type="button"
-              onClick={handleBiometricClick}
-              disabled={isBioLoading}
-              className="vault-primary-bio-btn w-full h-[52px] rounded-full bg-[#0E1940] hover:bg-[#162558] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
-              style={{
-                height: '52px',
-                backgroundColor: '#0E1940',
-                color: '#ffffff',
-                fontSize: '15px',
-                fontWeight: 600,
-                borderRadius: '9999px',
-                boxShadow: '0 8px 20px rgba(14,25,64,0.22)',
-              }}
-            >
-              {isBioLoading ? (
-                <>
-                  <Loader2 className="w-[22px] h-[22px] animate-spin text-white shrink-0" style={{ color: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Verificando huella...</span>
-                </>
-              ) : (
-                <>
-                  <Fingerprint className="w-[22px] h-[22px] stroke-[1.5] shrink-0 text-white" style={{ width: '22px', height: '22px', color: '#ffffff', stroke: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Entrar con biometría</span>
-                </>
-              )}
-            </button>
+            {isBioEnrolled ? (
+              <>
+                {/* Botón principal: relleno azul marino #0E1940, 52 px de alto, esquinas muy redondeadas, texto blanco 15 px semibold, ícono huella pequeño (22 px, trazo fino) */}
+                <button
+                  type="button"
+                  onClick={handleBiometricClick}
+                  disabled={isBioLoading}
+                  className="vault-primary-bio-btn w-full h-[52px] rounded-full bg-[#0E1940] hover:bg-[#162558] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
+                  style={{
+                    height: '52px',
+                    backgroundColor: '#0E1940',
+                    color: '#ffffff',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    borderRadius: '9999px',
+                    boxShadow: '0 8px 20px rgba(14,25,64,0.22)',
+                  }}
+                >
+                  {isBioLoading ? (
+                    <>
+                      <Loader2 className="w-[22px] h-[22px] animate-spin text-white shrink-0" style={{ color: '#ffffff' }} />
+                      <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Verificando huella...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="w-[22px] h-[22px] stroke-[1.5] shrink-0 text-white" style={{ width: '22px', height: '22px', color: '#ffffff', stroke: '#ffffff' }} />
+                      <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Entrar con biometría</span>
+                    </>
+                  )}
+                </button>
 
-            {/* Botón secundario: mismo tamaño (52 px), fondo transparente y borde fino de 1 px azul marino: "Entrar con contraseña" */}
-            <button
-              type="button"
-              onClick={() => {
-                setErrorMessage(null);
-                setAuthViewMode('keypad');
-              }}
-              className="w-full h-[52px] rounded-full bg-transparent border border-[#0E1940] hover:bg-[#0E1940]/5 active:scale-[0.99] text-[#0E1940] font-semibold transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
-              style={{
-                height: '52px',
-                backgroundColor: 'transparent',
-                borderWidth: '1px',
-                borderColor: '#0E1940',
-                color: '#0E1940',
-                fontSize: '15px',
-                fontWeight: 600,
-                borderRadius: '9999px',
-              }}
-            >
-              <span style={{ color: '#0E1940', fontSize: '15px', fontWeight: 600 }}>Entrar con contraseña</span>
-            </button>
+                {/* Botón secundario: mismo tamaño (52 px), fondo transparente y borde fino de 1 px azul marino: "Entrar con contraseña" */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    setAuthViewMode('keypad');
+                  }}
+                  className="w-full h-[52px] rounded-full bg-transparent border border-[#0E1940] hover:bg-[#0E1940]/5 active:scale-[0.99] text-[#0E1940] font-semibold transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
+                  style={{
+                    height: '52px',
+                    backgroundColor: 'transparent',
+                    borderWidth: '1px',
+                    borderColor: '#0E1940',
+                    color: '#0E1940',
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    borderRadius: '9999px',
+                  }}
+                >
+                  <span style={{ color: '#0E1940', fontSize: '15px', fontWeight: 600 }}>Entrar con contraseña</span>
+                </button>
+              </>
+            ) : (
+              /* Si NO hay huella vinculada en la app o dispositivo, se oculta por completo "Entrar con biometría" y "Entrar con contraseña" es el único botón principal */
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMessage(null);
+                  setAuthViewMode('keypad');
+                }}
+                className="vault-primary-bio-btn w-full h-[52px] rounded-full bg-[#0E1940] hover:bg-[#162558] active:scale-[0.99] transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
+                style={{
+                  height: '52px',
+                  backgroundColor: '#0E1940',
+                  color: '#ffffff',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  borderRadius: '9999px',
+                  boxShadow: '0 8px 20px rgba(14,25,64,0.22)',
+                }}
+              >
+                <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Entrar con contraseña</span>
+              </button>
+            )}
 
             {/* Debajo de los botones, dos enlaces subrayados, centrados, del mismo tamaño (14 px) y en azul marino #0E1940 */}
             <div className="mt-2 flex flex-col items-center justify-center gap-1.5">
