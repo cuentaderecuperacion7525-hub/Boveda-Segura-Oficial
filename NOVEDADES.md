@@ -1,4 +1,4 @@
-- Actualización v1.0.10: Optimización de altura y posición inferior asentada en la pantalla de bienvenida.
+- Actualización v1.0.11: Certificado de firma digital permanente unificado para actualizaciones automáticas en 1 clic.
 - Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
 - Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
 - Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.

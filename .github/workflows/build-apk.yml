@@ -60,10 +60,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.10
-          name: Versión 1.0.10 - Posicionamiento asentado al fondo en bienvenida
+          tag_name: v1.0.11
+          name: Versión 1.0.11 - Firma digital permanente unificada
           body: |
-            Ajuste de posición inferior asentada en la pantalla de bienvenida para eliminar espacio libre sobrante.
+            Actualización con clave de firma permanente unificada para instalación y actualización directa en 1 clic.
           files: |
             Boveda-Calculadora.apk
             version.json
