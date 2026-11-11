@@ -11,6 +11,8 @@ jobs:
   build:
     name: Compilar APK Android
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Descargar código fuente
@@ -44,8 +46,27 @@ jobs:
           cd android
           ./gradlew assembleDebug --stacktrace
 
+      - name: Preparar archivos para Release
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk ./Boveda-Calculadora.apk
+          cp public/version.json ./version.json
+
       - name: Subir artefacto APK Debug
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: Boveda-Calculadora.apk
+
+      - name: Publicar Release oficial en GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.7
+          name: Versión 1.0.7 - Rediseño visual de inicio de sesión
+          body: |
+            Rediseño visual de la pantalla de inicio de sesión con estilo Bancomer/BBVA minimalista.
+            Nuevos botones de alta accesibilidad, icono de huella dactilar y versión oficial v1.0.7.
+          files: |
+            Boveda-Calculadora.apk
+            version.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
