@@ -861,8 +861,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     <div
       className="min-h-screen flex flex-col justify-center items-center p-4 transition-colors duration-250 select-none"
       style={{
-        backgroundColor: 'var(--theme-bg-main, #060b14)',
-        color: 'var(--theme-text-main, #f8fafc)',
+        background:
+          authViewMode === 'welcome' && isRegisteredUser && remainingLockout <= 0
+            ? 'radial-gradient(circle at center, #CDE3F3 0%, #EEF3FA 100%)'
+            : 'var(--theme-bg-main, #060b14)',
+        color:
+          authViewMode === 'welcome' && isRegisteredUser && remainingLockout <= 0
+            ? '#0E1940'
+            : 'var(--theme-text-main, #f8fafc)',
       }}
     >
       {/* Ambient background blur using theme glow or coral during lockout */}
@@ -871,7 +877,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           className="w-[500px] h-[500px] rounded-full blur-[140px] transition-all duration-500"
           style={{
             backgroundColor: remainingLockout > 0 ? '#F87171' : 'var(--theme-primary, #00e5ff)',
-            opacity: remainingLockout > 0 ? 0.14 : 0.2,
+            opacity: remainingLockout > 0 || (authViewMode === 'welcome' && isRegisteredUser) ? 0 : 0.2,
           }}
         />
       </div>
@@ -932,145 +938,134 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
           </div>
         </div>
       ) : authViewMode === 'welcome' && isRegisteredUser ? (
-        /* ==================== PANTALLA DE BIENVENIDA (ESTILO BANCOMER / BBVA) ==================== */
-        <div className="relative w-full max-w-sm sm:max-w-md mx-auto flex flex-col justify-between min-h-[85vh] py-6 px-4 select-none animate-in fade-in duration-300">
-          {/* 1. Header con Iniciar sesión centrado (20 px, 700 bold) */}
-          <div className="w-full flex items-center justify-center relative pt-2 pb-4">
-            <h1
-              className="text-[20px] font-bold tracking-wide text-center"
+        /* ==================== PANTALLA DE BIENVENIDA (ESPECIFICACIÓN EXACTA DEL USUARIO) ==================== */
+        <div className="relative w-full max-w-sm mx-auto flex flex-col justify-between items-center min-h-[85vh] py-8 px-[28px] text-center select-none animate-in fade-in duration-300">
+          {/* Sin título arriba. Bloque central agrupado y centrado verticalmente */}
+          <div className="w-full my-auto flex flex-col items-center justify-center text-center py-4">
+            {/* Avatar circular de 72 px con degradado naranja-rojo (#F59E0B a #F0533C) y letra en azul marino #0E1940 */}
+            <div
+              className="w-[72px] h-[72px] rounded-full flex items-center justify-center text-[#0E1940] font-bold text-[28px] shadow-lg shrink-0 overflow-hidden select-none mb-3"
               style={{
-                fontSize: '20px',
-                fontWeight: 700,
-                color: '#0F1B3D',
+                width: '72px',
+                height: '72px',
+                background: 'linear-gradient(135deg, #F59E0B 0%, #F0533C 100%)',
+                color: '#0E1940',
               }}
             >
-              Iniciar sesión
-            </h1>
-          </div>
-
-          {/* 2. Zona central: Saludo a la izquierda (#1F2A44), Nombre (28 px serif bold #0F1B3D) y Avatar (76 px, iniciales 28 px) */}
-          <div className="w-full my-auto py-8 px-2">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex flex-col text-left min-w-0">
-                <span
-                  className="text-[20px] font-medium tracking-normal leading-snug"
-                  style={{
-                    fontSize: '20px',
-                    color: '#1F2A44',
-                  }}
-                >
-                  {getTimeGreeting()}
+              {userProfile?.photoURL ? (
+                <img
+                  src={userProfile.photoURL}
+                  alt={userDisplayName}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span style={{ color: '#0E1940', fontSize: '28px', fontWeight: 700 }}>
+                  {userInitials.charAt(0) || 'J'}
                 </span>
-                <h2
-                  className="text-[28px] font-serif font-bold tracking-tight leading-tight mt-0.5 break-words"
-                  style={{
-                    fontSize: '28px',
-                    fontWeight: 700,
-                    color: '#0F1B3D',
-                  }}
-                >
-                  {userDisplayName}
-                </h2>
-              </div>
-
-              <div
-                className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white font-medium text-[28px] shadow-xl shrink-0 border border-white/20 select-none overflow-hidden"
-                style={{
-                  width: '76px',
-                  height: '76px',
-                  fontSize: '28px',
-                  background: userProfile?.avatarColor || 'linear-gradient(135deg, #FF8000, #F59E0B)',
-                }}
-              >
-                {userProfile?.photoURL ? (
-                  <img
-                    src={userProfile.photoURL}
-                    alt={userDisplayName}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span>{userInitials}</span>
-                )}
-              </div>
+              )}
             </div>
+
+            {/* Texto "Buenos días" (15 px, regular) */}
+            <span
+              className="text-[15px] font-normal tracking-normal leading-tight text-[#0E1940]"
+              style={{
+                fontSize: '15px',
+                fontWeight: 400,
+                color: '#0E1940',
+              }}
+            >
+              {getTimeGreeting()}
+            </span>
+
+            {/* Nombre de usuario en UNA sola línea, serif en negrita 26 px */}
+            <h2
+              className="text-[26px] font-serif font-bold tracking-tight leading-tight mt-1 text-[#0E1940] whitespace-nowrap overflow-hidden text-ellipsis max-w-full"
+              title={userDisplayName}
+              style={{
+                fontSize: '26px',
+                fontWeight: 700,
+                color: '#0E1940',
+              }}
+            >
+              {userDisplayName}
+            </h2>
 
             {/* Error discreto si la huella falló o se canceló */}
             {errorMessage && (
-              <div className="mt-6 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2.5 text-xs font-semibold text-rose-300 animate-in fade-in">
-                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+              <div className="mt-5 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-xs font-semibold text-rose-800 animate-in fade-in max-w-xs">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{errorMessage}</span>
               </div>
             )}
           </div>
 
-          {/* 3. Zona inferior: Botón biometría (principal), Botón contraseña (secundario) y Enlaces */}
-          <div className="w-full flex flex-col gap-[12px] pb-4 px-1">
-            {/* Botón Principal: Entra con biometría (Relleno sólido #0F1B3D, texto BLANCO PURO #ffffff en 18px peso 600, icono Fingerprint 22px blanco, 10px sep, pill 64px, sombra 0 10px 24px rgba(15,27,61,.28)) */}
+          {/* Parte inferior, ancho completo con márgenes de 28 px */}
+          <div className="w-full flex flex-col gap-[12px] pb-2 text-center">
+            {/* Botón principal: relleno azul marino #0E1940, 52 px de alto, esquinas muy redondeadas, texto blanco 15 px semibold, ícono huella pequeño (22 px, trazo fino) */}
             <button
               type="button"
               onClick={handleBiometricClick}
               disabled={isBioLoading}
-              className="vault-primary-bio-btn w-full h-[64px] rounded-full bg-[#0F1B3D] hover:bg-[#162550] active:scale-[0.99] transition-all flex items-center justify-center gap-[10px] cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              className="vault-primary-bio-btn w-full h-[52px] rounded-full bg-[#0E1940] hover:bg-[#162558] active:scale-[0.99] transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
               style={{
-                height: '64px',
-                backgroundColor: '#0F1B3D',
+                height: '52px',
+                backgroundColor: '#0E1940',
                 color: '#ffffff',
-                fontSize: '18px',
+                fontSize: '15px',
                 fontWeight: 600,
                 borderRadius: '9999px',
-                boxShadow: '0 10px 24px rgba(15,27,61,0.28)',
+                boxShadow: '0 8px 20px rgba(14,25,64,0.22)',
               }}
             >
               {isBioLoading ? (
                 <>
                   <Loader2 className="w-[22px] h-[22px] animate-spin text-white shrink-0" style={{ color: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600 }}>Verificando huella...</span>
+                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Verificando huella...</span>
                 </>
               ) : (
                 <>
-                  <Fingerprint className="w-[22px] h-[22px] shrink-0 text-white" style={{ width: '22px', height: '22px', color: '#ffffff', stroke: '#ffffff' }} />
-                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600 }}>Entra con biometría</span>
+                  <Fingerprint className="w-[22px] h-[22px] stroke-[1.5] shrink-0 text-white" style={{ width: '22px', height: '22px', color: '#ffffff', stroke: '#ffffff' }} />
+                  <span className="text-white font-semibold" style={{ color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>Entrar con biometría</span>
                 </>
               )}
             </button>
 
-            {/* Botón Secundario: Entra con contraseña (Fondo transparente, borde 1.5px #0F1B3D, texto #0F1B3D 18px peso 600, pill 64px) */}
+            {/* Botón secundario: mismo tamaño (52 px), fondo transparente y borde fino de 1 px azul marino: "Entrar con contraseña" */}
             <button
               type="button"
               onClick={() => {
                 setErrorMessage(null);
                 setAuthViewMode('keypad');
               }}
-              className="w-full h-[64px] rounded-full bg-transparent border-[1.5px] border-[#0F1B3D] hover:bg-[#0F1B3D]/5 active:scale-[0.99] text-[#0F1B3D] font-semibold transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2"
+              className="w-full h-[52px] rounded-full bg-transparent border border-[#0E1940] hover:bg-[#0E1940]/5 active:scale-[0.99] text-[#0E1940] font-semibold transition-all flex items-center justify-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2"
               style={{
-                height: '64px',
+                height: '52px',
                 backgroundColor: 'transparent',
-                borderWidth: '1.5px',
-                borderColor: '#0F1B3D',
-                color: '#0F1B3D',
-                fontSize: '18px',
+                borderWidth: '1px',
+                borderColor: '#0E1940',
+                color: '#0E1940',
+                fontSize: '15px',
                 fontWeight: 600,
                 borderRadius: '9999px',
               }}
             >
-              <span style={{ color: '#0F1B3D', fontSize: '18px', fontWeight: 600 }}>Entra con contraseña</span>
+              <span style={{ color: '#0E1940', fontSize: '15px', fontWeight: 600 }}>Entrar con contraseña</span>
             </button>
 
-            {/* Enlaces nuevos debajo de los botones (8px margen sup, centrados, subrayados, color #0F1B3D, min height 44px) */}
-            <div className="mt-[8px] flex flex-col items-center justify-center gap-1">
+            {/* Debajo de los botones, dos enlaces subrayados, centrados, del mismo tamaño (14 px) y en azul marino #0E1940 */}
+            <div className="mt-2 flex flex-col items-center justify-center gap-1.5">
               <a
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   handleOpenForgotPin();
                 }}
-                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[16px] font-semibold underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                className="inline-flex items-center justify-center text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
                 style={{
-                  color: '#0F1B3D',
-                  fontSize: '16px',
-                  fontWeight: 600,
+                  color: '#0E1940',
+                  fontSize: '14px',
+                  fontWeight: 400,
                   textDecoration: 'underline',
-                  minHeight: '44px',
                 }}
               >
                 ¿Olvidaste tu contraseña?
@@ -1086,16 +1081,15 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     onResetVaultRequest();
                   }
                 }}
-                className="inline-flex items-center justify-center min-h-[44px] px-2 text-[15px] font-normal underline text-[#0F1B3D] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0F1B3D] focus:ring-offset-2 rounded-lg"
+                className="inline-flex items-center justify-center text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
                 style={{
-                  color: '#0F1B3D',
-                  fontSize: '15px',
+                  color: '#0E1940',
+                  fontSize: '14px',
                   fontWeight: 400,
                   textDecoration: 'underline',
-                  minHeight: '44px',
                 }}
               >
-                ¿No eres {userDisplayName}? Cambiar usuario
+                Cambiar usuario
               </a>
             </div>
           </div>
