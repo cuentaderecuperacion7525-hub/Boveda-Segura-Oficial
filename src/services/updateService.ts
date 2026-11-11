@@ -408,13 +408,14 @@ class UpdateService {
   }
 
   public getGitHubRepo(): string {
-    return localStorage.getItem('vault_github_repo') || 'cuentaderecuperacion7525-hub/Mi-B-veda.-';
+    return localStorage.getItem('vault_github_repo') || 'cuentaderecuperacion7525-hub/Boveda-Segura-Oficial';
   }
 
   public getCandidateRepos(): string[] {
     const custom = localStorage.getItem('vault_github_repo');
     const candidates = [
       custom,
+      'cuentaderecuperacion7525-hub/Boveda-Segura-Oficial',
       'cuentaderecuperacion7525-hub/Mi-B-veda.-',
       'cuentaderecuperacion7525-hub/Mi-Boveda.-',
       'cuentaderecuperacion7525-hub/Mi-Boveda',
