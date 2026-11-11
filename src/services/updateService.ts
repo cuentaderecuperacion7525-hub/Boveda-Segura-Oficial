@@ -130,12 +130,12 @@ class UpdateService {
               remoteVersionStr = tag;
 
               // Calcular build number
-              let parsedBuild = 1;
+              let parsedBuild = 2000;
               const parts = tag.split('.');
               if (parts.length >= 3) {
                 const patch = parseInt(parts[2], 10);
                 if (!isNaN(patch)) {
-                  parsedBuild = patch;
+                  parsedBuild = patch >= 1000 ? patch : 2000 + patch;
                 }
               }
               remoteBuild = parsedBuild;
@@ -145,7 +145,7 @@ class UpdateService {
                 a.name && a.name.toLowerCase().endsWith('.apk')
               );
               directApkUrl = apkAsset?.browser_download_url ||
-                `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
+                `https://github.com/${repo}/releases/download/${release.tag_name}/Boveda-Calculadora.apk`;
 
               // Buscar asset version.json si está adjunto en la release
               const versionJsonAsset = release.assets?.find((a: any) =>
