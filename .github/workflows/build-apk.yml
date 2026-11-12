@@ -68,10 +68,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.14
-          name: Versión 1.0.14 - APK Release Producción Firma Unificada
+          tag_name: v1.0.15
+          name: Versión 1.0.15 - Ventana de Confirmación Nativa Google Forzada
           body: |
-            Compilado APK Release firmado con el certificado de producción unificado permanente.
+            Invalidación en caliente de caché de permisos para desplegar siempre la ventana nativa "Permitir / Cancelar" de Google Play Services.
           files: |
             Boveda-Calculadora.apk
             version.json

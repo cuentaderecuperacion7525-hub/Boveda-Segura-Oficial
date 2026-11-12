@@ -291,7 +291,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                 waitingForConsent = true;
                                 consentDialogPausedActivity = false;
 
-                                Bundle options = new Bundle();
+                                final Bundle options = new Bundle();
                                 options.putBoolean("handle_permission", true);
 
                                 am.getAuthToken(
@@ -306,9 +306,9 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                 @Override
                                                 public void run() {
                                                     try {
-                                                        Bundle bundle = future.getResult(10, java.util.concurrent.TimeUnit.SECONDS);
+                                                        Bundle bundle = future.getResult(12, java.util.concurrent.TimeUnit.SECONDS);
                                                         if (bundle != null) {
-                                                            // En caso de que el sistema devuelva un Intent explícito de consentimiento
+                                                            // Caso 1: Google Play Services devuelve el Intent explícito ("Permitir / Cancelar")
                                                             if (bundle.containsKey(AccountManager.KEY_INTENT)) {
                                                                 Intent consentIntent = bundle.getParcelable(AccountManager.KEY_INTENT);
                                                                 if (consentIntent != null && !activity.isFinishing()) {
@@ -318,46 +318,58 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                                 }
                                                             }
 
-                                                            final String token = bundle.getString(AccountManager.KEY_AUTHTOKEN);
-                                                            String confirmedAccount = bundle.getString(AccountManager.KEY_ACCOUNT_NAME);
-                                                            final String finalEmail = (confirmedAccount != null && !confirmedAccount.trim().isEmpty())
-                                                                ? confirmedAccount.trim().toLowerCase()
-                                                                : cleanEmail;
+                                                            // Caso 2: Si devolvió token pre-autorizado sin la ventana, invalidamos en caliente y reintentamos con la Activity
+                                                            final String cachedToken = bundle.getString(AccountManager.KEY_AUTHTOKEN);
+                                                            if (cachedToken != null && !cachedToken.isEmpty()) {
+                                                                am.invalidateAuthToken("com.google", cachedToken);
+                                                                revokeGoogleTokenSync(cachedToken, 2500);
 
-                                                            String resolvedFirst = displayName;
-                                                            String resolvedLast = "";
-                                                            String resolvedPhoto = "";
-
-                                                            if (token != null && !token.isEmpty()) {
-                                                                String[] profileData = fetchGoogleUserInfoSync(token, 2500);
-                                                                if (profileData != null) {
-                                                                    if (profileData[0] != null && !profileData[0].isEmpty()) {
-                                                                        resolvedFirst = profileData[0];
-                                                                    }
-                                                                    if (profileData[1] != null) {
-                                                                        resolvedLast = profileData[1];
-                                                                    }
-                                                                    if (profileData[2] != null) {
-                                                                        resolvedPhoto = profileData[2];
-                                                                    }
-                                                                }
-                                                            }
-
-                                                            // 1. Devolvemos la cuenta confirmada con su nombre real de Google a la app
-                                                            resolveSuccessWithProfile(call, finalEmail, resolvedFirst, resolvedLast, resolvedPhoto);
-
-                                                            // 2. En un hilo independiente invalidamos/revocamos el token para futuras confirmaciones
-                                                            if (token != null && !token.isEmpty()) {
-                                                                new Thread(new Runnable() {
+                                                                activity.runOnUiThread(new Runnable() {
                                                                     @Override
                                                                     public void run() {
                                                                         try {
-                                                                            am.invalidateAuthToken("com.google", token);
-                                                                            revokeGoogleTokenSync(token, 3500);
-                                                                        } catch (Exception ignored) {}
+                                                                            am.getAuthToken(
+                                                                                account,
+                                                                                OAUTH_SCOPE,
+                                                                                options,
+                                                                                activity,
+                                                                                new AccountManagerCallback<Bundle>() {
+                                                                                    @Override
+                                                                                    public void run(final AccountManagerFuture<Bundle> f2) {
+                                                                                        new Thread(new Runnable() {
+                                                                                            @Override
+                                                                                            public void run() {
+                                                                                                try {
+                                                                                                    Bundle b2 = f2.getResult(12, java.util.concurrent.TimeUnit.SECONDS);
+                                                                                                    if (b2 != null && b2.containsKey(AccountManager.KEY_INTENT)) {
+                                                                                                        Intent consentIntent = b2.getParcelable(AccountManager.KEY_INTENT);
+                                                                                                        if (consentIntent != null && !activity.isFinishing()) {
+                                                                                                            consentIntent.setFlags(consentIntent.getFlags() & ~Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                                                                            startActivityForResult(call, consentIntent, "handleConsentResult");
+                                                                                                            return;
+                                                                                                        }
+                                                                                                    }
+                                                                                                    processTokenAndResolve(call, am, b2 != null ? b2 : bundle, cleanEmail, displayName);
+                                                                                                } catch (OperationCanceledException oce) {
+                                                                                                    resolveCancelled(call);
+                                                                                                } catch (Exception e) {
+                                                                                                    processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
+                                                                                                }
+                                                                                            }
+                                                                                        }).start();
+                                                                                    }
+                                                                                },
+                                                                                null
+                                                                            );
+                                                                        } catch (Exception uiEx2) {
+                                                                            processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
+                                                                        }
                                                                     }
-                                                                }).start();
+                                                                });
+                                                                return;
                                                             }
+
+                                                            processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
                                                             return;
                                                         }
                                                     } catch (OperationCanceledException oce) {
@@ -368,8 +380,6 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                         Log.w(TAG, "Aviso en getAuthToken: " + e.getMessage());
                                                     }
 
-                                                    // Si el usuario ya confirmó la selección de la cuenta de Google,
-                                                    // resolvemos con éxito para que la cuenta se actualice de inmediato en la app
                                                     resolveSuccess(call, cleanEmail, displayName);
                                                 }
                                             }).start();
@@ -389,6 +399,48 @@ public class VaultGoogleAuthPlugin extends Plugin {
                 }
             }
         }).start();
+    }
+
+    private void processTokenAndResolve(PluginCall call, AccountManager am, Bundle bundle, String cleanEmail, String displayName) {
+        String confirmedAccount = bundle != null ? bundle.getString(AccountManager.KEY_ACCOUNT_NAME) : null;
+        final String finalEmail = (confirmedAccount != null && !confirmedAccount.trim().isEmpty())
+            ? confirmedAccount.trim().toLowerCase()
+            : cleanEmail;
+
+        final String token = bundle != null ? bundle.getString(AccountManager.KEY_AUTHTOKEN) : null;
+        String resolvedFirst = displayName;
+        String resolvedLast = "";
+        String resolvedPhoto = "";
+
+        if (token != null && !token.isEmpty()) {
+            String[] profileData = fetchGoogleUserInfoSync(token, 2500);
+            if (profileData != null) {
+                if (profileData[0] != null && !profileData[0].isEmpty()) {
+                    resolvedFirst = profileData[0];
+                }
+                if (profileData[1] != null) {
+                    resolvedLast = profileData[1];
+                }
+                if (profileData[2] != null) {
+                    resolvedPhoto = profileData[2];
+                }
+            }
+        }
+
+        resolveSuccessWithProfile(call, finalEmail, resolvedFirst, resolvedLast, resolvedPhoto);
+
+        if (token != null && !token.isEmpty()) {
+            final String tokToRevoke = token;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        am.invalidateAuthToken("com.google", tokToRevoke);
+                        revokeGoogleTokenSync(tokToRevoke, 3500);
+                    } catch (Exception ignored) {}
+                }
+            }).start();
+        }
     }
 
     /**
