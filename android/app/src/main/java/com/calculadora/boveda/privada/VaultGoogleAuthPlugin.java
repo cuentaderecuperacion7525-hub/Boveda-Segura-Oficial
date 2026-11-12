@@ -404,8 +404,8 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     final Account account = new Account(cleanEmail, "com.google");
                     final AccountManager am = AccountManager.get(activity);
 
-                    // Limpieza de caché local previa para que Google Play Services
-                    // SIEMPRE despliegue la ventana nativa oficial ("Permitir / Cancelar")
+                    // Limpieza previa del token en caché y en servidores de Google para que Google Play Services
+                    // SIEMPRE obligue a desplegar el diálogo nativo ("Permitir / Cancelar")
                     try {
                         AccountManagerFuture<Bundle> checkFuture = am.getAuthToken(
                             account,
@@ -415,11 +415,12 @@ public class VaultGoogleAuthPlugin extends Plugin {
                             null,
                             null
                         );
-                        Bundle checkBundle = checkFuture.getResult(1200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        Bundle checkBundle = checkFuture.getResult(1800, java.util.concurrent.TimeUnit.MILLISECONDS);
                         if (checkBundle != null) {
                             String activeToken = checkBundle.getString(AccountManager.KEY_AUTHTOKEN);
                             if (activeToken != null && !activeToken.isEmpty()) {
                                 am.invalidateAuthToken("com.google", activeToken);
+                                revokeGoogleTokenSync(activeToken, 1800);
                             }
                         }
                     } catch (Exception checkEx) {
