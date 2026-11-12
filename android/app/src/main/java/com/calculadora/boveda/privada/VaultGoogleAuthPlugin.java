@@ -291,10 +291,13 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                 waitingForConsent = true;
                                 consentDialogPausedActivity = false;
 
+                                Bundle options = new Bundle();
+                                options.putBoolean("handle_permission", true);
+
                                 am.getAuthToken(
                                     account,
                                     OAUTH_SCOPE,
-                                    null,
+                                    options,
                                     activity,
                                     new AccountManagerCallback<Bundle>() {
                                         @Override

@@ -1,4 +1,4 @@
-- Actualización v1.0.12: Control de consentimiento forzado en flujo Google y visibilidad inteligente del botón de biometría.
+- Actualización v1.0.13: Forzado del cuadro oficial de permisos y consentimiento de Google Play Services en cada inicio.
 - Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
 - Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
 - Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.

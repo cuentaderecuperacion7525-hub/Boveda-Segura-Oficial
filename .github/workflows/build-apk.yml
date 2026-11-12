@@ -64,10 +64,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.12
-          name: Versión 1.0.12 - Flujo Google Consent y Botón Biometría Inteligente
+          tag_name: v1.0.13
+          name: Versión 1.0.13 - Consentimiento Nativo Obligatorio Google
           body: |
-            Corrección del flujo de autorización de Google con consentimiento forzado y visibilidad contextual del botón de biometría.
+            Forzado del cuadro oficial de permisos y consentimiento de Google Play Services ("Permitir / Cancelar") en cada inicio de sesión.
           files: |
             Boveda-Calculadora.apk
             version.json
