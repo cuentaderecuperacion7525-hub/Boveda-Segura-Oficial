@@ -35,7 +35,7 @@ jobs:
           java-version: 21
 
       - name: Instalar dependencias de Node
-        run: npm ci || npm install
+        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
       - name: Generar construcción web y sincronizar Capacitor
         run: |
