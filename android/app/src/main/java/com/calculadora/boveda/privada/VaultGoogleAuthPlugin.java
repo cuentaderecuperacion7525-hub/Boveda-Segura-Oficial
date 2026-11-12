@@ -74,6 +74,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
             pendingDisplayName = null;
 
             GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken("608078005590-n71gktl427qb5265uej3nonvafjsavuv.apps.googleusercontent.com")
                 .requestEmail()
                 .requestProfile()
                 .build();
