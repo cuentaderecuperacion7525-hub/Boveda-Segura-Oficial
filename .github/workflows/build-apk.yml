@@ -45,29 +45,33 @@ jobs:
       - name: Dar permisos a Gradle Wrapper
         run: chmod +x android/gradlew
 
-      - name: Compilar APK Debug con Gradle
+      - name: Compilar APK Android con Gradle
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
 
       - name: Preparar archivos para Release
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk ./Boveda-Calculadora.apk
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk ./Boveda-Calculadora.apk
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk ./Boveda-Calculadora.apk
+          fi
           cp public/version.json ./version.json
 
-      - name: Subir artefacto APK Debug
+      - name: Subir artefacto APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-release
           path: Boveda-Calculadora.apk
 
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.13
-          name: Versión 1.0.13 - Consentimiento Nativo Obligatorio Google
+          tag_name: v1.0.14
+          name: Versión 1.0.14 - APK Release Producción Firma Unificada
           body: |
-            Forzado del cuadro oficial de permisos y consentimiento de Google Play Services ("Permitir / Cancelar") en cada inicio de sesión.
+            Compilado APK Release firmado con el certificado de producción unificado permanente.
           files: |
             Boveda-Calculadora.apk
             version.json

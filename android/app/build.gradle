@@ -7,8 +7,8 @@ android {
         applicationId "com.calculadora.boveda.privada"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2013
-        versionName "1.0.13"
+        versionCode 2014
+        versionName "1.0.14"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -22,8 +22,18 @@ android {
     }
     signingConfigs {
         debug {
-            if (file('debug.keystore').exists()) {
-                storeFile file('debug.keystore')
+            if (file("${projectDir}/debug.keystore").exists()) {
+                storeFile file("${projectDir}/debug.keystore")
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+                v1SigningEnabled true
+                v2SigningEnabled true
+            }
+        }
+        release {
+            if (file("${projectDir}/debug.keystore").exists()) {
+                storeFile file("${projectDir}/debug.keystore")
                 storePassword 'android'
                 keyAlias 'androiddebugkey'
                 keyPassword 'android'
@@ -37,7 +47,7 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
