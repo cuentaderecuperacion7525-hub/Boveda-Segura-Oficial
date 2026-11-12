@@ -404,6 +404,28 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     final Account account = new Account(cleanEmail, "com.google");
                     final AccountManager am = AccountManager.get(activity);
 
+                    // Limpieza de caché local previa para que Google Play Services
+                    // SIEMPRE despliegue la ventana nativa oficial ("Permitir / Cancelar")
+                    try {
+                        AccountManagerFuture<Bundle> checkFuture = am.getAuthToken(
+                            account,
+                            OAUTH_SCOPE,
+                            null,
+                            false,
+                            null,
+                            null
+                        );
+                        Bundle checkBundle = checkFuture.getResult(1200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        if (checkBundle != null) {
+                            String activeToken = checkBundle.getString(AccountManager.KEY_AUTHTOKEN);
+                            if (activeToken != null && !activeToken.isEmpty()) {
+                                am.invalidateAuthToken("com.google", activeToken);
+                            }
+                        }
+                    } catch (Exception checkEx) {
+                        Log.d(TAG, "Aviso previo token: " + checkEx.getMessage());
+                    }
+
                     if (activity.isFinishing() || activity.isDestroyed()) {
                         isConsentInProgress.set(false);
                         resolveSuccess(call, cleanEmail, displayName);
