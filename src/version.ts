@@ -10,13 +10,13 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.15';
+export const APP_VERSION = '1.0.16';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2015;
+export const CURRENT_BUILD_NUMBER = 2016;
 export const CURRENT_RELEASE_DATE = '11 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
-  'Actualización v1.0.15: Invalidación activa de caché en caliente para desplegar siempre el cuadro nativo de confirmación ("Permitir / Cancelar") de Google.',
+  'Actualización v1.0.16: Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic.',
   'Cifrado militar local AES-256 para fotos, videos, audios, documentos y aplicaciones.',
   'Visor de documentos PDF local integrado con renderizado por canvas.',
   'Reproductor de audio integrado con modo segundo plano y controles avanzados.',

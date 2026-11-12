@@ -1,4 +1,4 @@
-- Actualización v1.0.15: Invalidación activa de caché en caliente para desplegar siempre el cuadro nativo de confirmación ("Permitir / Cancelar") de Google.
+- Actualización v1.0.16: Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic.
 - Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
 - Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
 - Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.

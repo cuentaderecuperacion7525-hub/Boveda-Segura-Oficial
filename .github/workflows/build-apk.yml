@@ -48,30 +48,26 @@ jobs:
       - name: Compilar APK Android con Gradle
         run: |
           cd android
-          ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace
 
       - name: Preparar archivos para Release
         run: |
-          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk ./Boveda-Calculadora.apk
-          else
-            cp android/app/build/outputs/apk/debug/app-debug.apk ./Boveda-Calculadora.apk
-          fi
+          cp android/app/build/outputs/apk/debug/app-debug.apk ./Boveda-Calculadora.apk
           cp public/version.json ./version.json
 
       - name: Subir artefacto APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-debug
           path: Boveda-Calculadora.apk
 
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.15
-          name: Versión 1.0.15 - Ventana de Confirmación Nativa Google Forzada
+          tag_name: v1.0.16
+          name: Versión 1.0.16 - Compilador Unificado Permanente
           body: |
-            Invalidación en caliente de caché de permisos para desplegar siempre la ventana nativa "Permitir / Cancelar" de Google Play Services.
+            Compilado APK unificado firmado con la clave permanente para actualización transparente en 1 clic.
           files: |
             Boveda-Calculadora.apk
             version.json
