@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import androidx.activity.result.ActivityResult;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -49,6 +50,40 @@ public class VaultGoogleAuthPlugin extends Plugin {
     private volatile String pendingDisplayName = null;
 
     @PluginMethod
+    public void getGoogleAccounts(PluginCall call) {
+        try {
+            Activity activity = getActivity();
+            if (activity == null) {
+                JSObject ret = new JSObject();
+                ret.put("accounts", new JSArray());
+                call.resolve(ret);
+                return;
+            }
+            AccountManager am = AccountManager.get(activity);
+            Account[] accounts = am.getAccountsByType("com.google");
+            JSArray list = new JSArray();
+            if (accounts != null) {
+                for (Account acc : accounts) {
+                    if (acc != null && acc.name != null && !acc.name.trim().isEmpty()) {
+                        JSObject item = new JSObject();
+                        item.put("email", acc.name.trim().toLowerCase());
+                        item.put("name", acc.name.trim());
+                        list.put(item);
+                    }
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("accounts", list);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.w(TAG, "Aviso al leer cuentas de Google: " + e.getMessage());
+            JSObject ret = new JSObject();
+            ret.put("accounts", new JSArray());
+            call.resolve(ret);
+        }
+    }
+
+    @PluginMethod
     public void chooseGoogleAccount(PluginCall call) {
         try {
             Activity activity = getActivity();
@@ -57,7 +92,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
                 return;
             }
 
-            // Mantener viva la llamada durante los 2 diálogos nativos consecutivos
+            // Mantener viva la llamada durante los diálogos nativos
             call.setKeepAlive(true);
             saveCall(call);
 
@@ -67,6 +102,20 @@ public class VaultGoogleAuthPlugin extends Plugin {
             pendingCall = call;
             pendingEmail = null;
             pendingDisplayName = null;
+
+            String selectedEmail = call.getString("selectedEmail");
+            if (selectedEmail != null && !selectedEmail.trim().isEmpty()) {
+                final String cleanEmail = selectedEmail.trim().toLowerCase();
+                String namePart = cleanEmail.split("@")[0];
+                final String displayName = namePart.length() > 0
+                    ? namePart.substring(0, 1).toUpperCase() + namePart.substring(1)
+                    : "Usuario";
+
+                pendingEmail = cleanEmail;
+                pendingDisplayName = displayName;
+                requestOriginalGoogleConsent(activity, call, cleanEmail, displayName);
+                return;
+            }
 
             Intent intent;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -84,13 +133,16 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     null,
                     null,
                     new String[]{"com.google"},
-                    false,
+                    true,
                     null,
                     null,
                     null,
                     null
                 );
             }
+
+            intent.putExtra("alwaysPrompt", true);
+            intent.putExtra("alwaysPromptAddAccount", true);
 
             startActivityForResult(call, intent, "handleAccountChoice");
         } catch (Exception e) {
@@ -102,7 +154,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
     }
 
     @ActivityCallback
-    private void handleAccountChoice(PluginCall call, ActivityResult result) {
+    public void handleAccountChoice(PluginCall call, ActivityResult result) {
         PluginCall activeCall = call != null ? call : (pendingCall != null ? pendingCall : getSavedCall());
         if (activeCall == null) return;
 
@@ -144,7 +196,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
     }
 
     @ActivityCallback
-    private void handleConsentResult(PluginCall call, ActivityResult result) {
+    public void handleConsentResult(PluginCall call, ActivityResult result) {
         final PluginCall activeCall = call != null ? call : (pendingCall != null ? pendingCall : getSavedCall());
         if (activeCall == null) return;
 

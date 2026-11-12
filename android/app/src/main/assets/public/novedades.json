@@ -1,9 +1,9 @@
 {
-  "fecha": "9 de noviembre de 2026",
+  "fecha": "12 de noviembre de 2026",
   "cambios": [
     {
-      "titulo": "Actualización v1.0.1",
-      "texto": "Ajuste de visibilidad y posición en pestañas de aplicaciones y optimización de actualizaciones."
+      "titulo": "Actualización v1.0.16",
+      "texto": "Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic."
     },
     {
       "titulo": "Cifrado militar local",

@@ -22,10 +22,23 @@ export interface NativeGoogleAuthResponse {
 }
 
 export interface VaultGoogleAuthPluginInterface {
-  chooseGoogleAccount(): Promise<NativeGoogleAuthResponse>;
+  chooseGoogleAccount(options?: { selectedEmail?: string }): Promise<NativeGoogleAuthResponse>;
+  getGoogleAccounts(): Promise<{ accounts: { email: string; name: string }[] }>;
 }
 
 export const NativeGoogleAuth = registerPlugin<VaultGoogleAuthPluginInterface>('VaultGoogleAuth');
+
+export async function getNativeGoogleAccounts(): Promise<{ email: string; name: string }[]> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await NativeGoogleAuth.getGoogleAccounts();
+      return res?.accounts || [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 export interface NativeGoogleAuthResult {
   success: boolean;
@@ -88,7 +101,7 @@ async function fetchStoredNameForEmail(cleanEmail: string): Promise<{ firstName?
  * - Al pulsar la cuenta, entrega su nombre y correo real verificado.
  * - Sin redirecciones web, sin abrir Chrome y sin errores de origin_mismatch.
  */
-export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> {
+export async function signInWithNativeGoogle(selectedEmail?: string): Promise<NativeGoogleAuthResult> {
   try {
     // Si estamos en un dispositivo nativo Android
     if (Capacitor.isNativePlatform()) {
@@ -97,7 +110,9 @@ export async function signInWithNativeGoogle(): Promise<NativeGoogleAuthResult> 
 
       let res: NativeGoogleAuthResponse;
       try {
-        res = await NativeGoogleAuth.chooseGoogleAccount();
+        res = await NativeGoogleAuth.chooseGoogleAccount(
+          selectedEmail ? { selectedEmail: selectedEmail.trim().toLowerCase() } : undefined
+        );
       } finally {
         setTimeout(() => {
           (window as any).__isAuthenticatingGoogle = false;

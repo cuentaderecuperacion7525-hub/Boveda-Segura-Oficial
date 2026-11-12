@@ -339,6 +339,9 @@ export default function App() {
           onResetVaultRequest={() => {
             setVaultStatus('setup');
           }}
+          onGoToRegister={() => {
+            setVaultStatus('register');
+          }}
           showToast={showToast}
         />
       ) : (
