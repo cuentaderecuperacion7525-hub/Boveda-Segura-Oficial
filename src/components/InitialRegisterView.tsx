@@ -387,7 +387,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     return () => clearInterval(interval);
   }, [step, emailInput, firstName, lastName, pendingToken, secondsLeft]);
 
-  /* ==================== ACCESO GOOGLE (FLUJO OFICIAL NATIVO) ==================== */
+  /* ========================================================================= */
+  /* CÓDIGO CRÍTICO PROTEGIDO - NO MODIFICAR NI ALTERAR                        */
+  /* Flujo oficial de Google (selector nativo + ventana de consentimiento).    */
+  /* ========================================================================= */
   const handleContinueWithGoogle = async () => {
     if (isLoadingNative) return;
     setIsLoadingNative(true);
@@ -443,7 +446,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       setIsLoadingNative(false);
     }
   };
-  /* ==================== FIN BLOQUE ==================== */
+  /* ==================== FIN BLOQUE PROTEGIDO ==================== */
 
   // Enviar código de 6 dígitos + enlace al correo al pulsar "Crear cuenta"
   const handleRegisterSubmit = async (e?: React.FormEvent) => {
