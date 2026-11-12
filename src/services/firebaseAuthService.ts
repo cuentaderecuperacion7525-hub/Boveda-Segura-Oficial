@@ -1,5 +1,10 @@
 import {
   GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  setPersistence,
+  browserSessionPersistence,
   signInWithCredential,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -64,6 +69,18 @@ export const GOOGLE_OAUTH_CLIENT_ID =
   '608078005590-n71gktl427qb5265uej3nonvafjsavuv.apps.googleusercontent.com';
 
 /**
+ * Configures Firebase Auth persistence to browserSessionPersistence
+ * so session is cleared upon closing the browser tab.
+ */
+export async function configureAuthPersistence(): Promise<void> {
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+  } catch (err) {
+    console.warn('Firebase Auth persistence configuration notice:', err);
+  }
+}
+
+/**
  * Decodes a Google ID Token JWT payload without external libraries.
  */
 export function decodeGoogleJwt(token: string): {
@@ -94,7 +111,6 @@ export function decodeGoogleJwt(token: string): {
 
 /**
  * Signs in using a Google ID token credential obtained from Google Identity Services (GSI).
- * Never opens .firebaseapp.com/__/auth/handler, preventing "The requested action is invalid" on Android.
  */
 export async function signInWithGoogleCredential(idToken: string): Promise<{
   success: boolean;
@@ -102,6 +118,7 @@ export async function signInWithGoogleCredential(idToken: string): Promise<{
   error?: string;
 }> {
   try {
+    await configureAuthPersistence();
     const credential = GoogleAuthProvider.credential(idToken);
     const userCredential = await signInWithCredential(auth, credential);
     const user = userCredential.user;
@@ -144,8 +161,7 @@ export async function signInWithGoogleCredential(idToken: string): Promise<{
 }
 
 /**
- * Signs in using an OAuth 2.0 access_token obtained directly from accounts.google.com (GSI Token Client).
- * Fetches real user profile from Google's userinfo endpoint and signs into Firebase via signInWithCredential.
+ * Signs in using an OAuth 2.0 access_token obtained directly from Google.
  */
 export async function signInWithGoogleAccessToken(accessToken: string): Promise<{
   success: boolean;
@@ -153,12 +169,11 @@ export async function signInWithGoogleAccessToken(accessToken: string): Promise<
   error?: string;
 }> {
   try {
-    // 1. Authenticate with Firebase using the Google access token directly (no firebaseapp.com popup)
+    await configureAuthPersistence();
     const credential = GoogleAuthProvider.credential(null, accessToken);
     const userCredential = await signInWithCredential(auth, credential);
     const user = userCredential.user;
 
-    // 2. Fetch complete profile info from official Google userinfo API
     let googleUser: {
       given_name?: string;
       family_name?: string;
@@ -225,9 +240,8 @@ export async function signInWithGoogleAccessToken(accessToken: string): Promise<
 }
 
 /**
- * Opens the official Google Account Chooser & Consent flow directly via accounts.google.com
- * (Google Identity Services OAuth2 Token Client), avoiding the .firebaseapp.com/__/auth/handler
- * "The requested action is invalid" error on Android Chrome / WebAPK.
+ * Real Firebase Auth Google Sign-In with prompt: 'consent select_account'
+ * and browserSessionPersistence. Handles popup blocks by falling back to signInWithRedirect.
  */
 export async function signInWithGoogle(): Promise<{
   success: boolean;
@@ -235,70 +249,142 @@ export async function signInWithGoogle(): Promise<{
   error?: string;
   cancelled?: boolean;
 }> {
-  return new Promise((resolve) => {
-    const oauth2 = window.google?.accounts?.oauth2;
+  try {
+    await configureAuthPersistence();
 
-    if (!oauth2) {
-      resolve({
-        success: false,
-        error: 'El servicio de cuentas de Google aún está cargando. Intenta de nuevo en un segundo.',
-      });
-      return;
-    }
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'consent select_account',
+    });
 
+    let userCredential;
     try {
-      const tokenClient = oauth2.initTokenClient({
-        client_id: GOOGLE_OAUTH_CLIENT_ID,
-        scope: 'openid email profile',
-        prompt: 'select_account consent',
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error || !tokenResponse.access_token) {
-            if (tokenResponse.error === 'access_denied') {
-              resolve({
-                success: false,
-                error: 'Acceso rechazado. Debes permitir el acceso para continuar.',
-              });
-            } else {
-              resolve({
-                success: false,
-                error: tokenResponse.error_description || 'Inicio de sesión cancelado.',
-              });
-            }
-            return;
-          }
+      userCredential = await signInWithPopup(auth, provider);
+    } catch (popupErr: any) {
+      console.warn('signInWithPopup error:', popupErr);
+      const code = popupErr?.code || '';
 
-          const result = await signInWithGoogleAccessToken(tokenResponse.access_token);
-          resolve(result);
-        },
-        error_callback: (err) => {
-          if (err?.type === 'popup_closed') {
-            resolve({
-              success: false,
-              error: 'Ventana cerrada antes de completar la selección de cuenta.',
-            });
-          } else if (err?.type === 'popup_failed_to_open') {
-            resolve({
-              success: false,
-              error: 'El navegador bloqueó la ventana emergente de Google. Permite las ventanas emergentes.',
-            });
-          } else {
-            resolve({
-              success: false,
-              error: 'Operación cancelada.',
-            });
-          }
-        },
-      });
+      if (
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/user-cancelled'
+      ) {
+        return {
+          success: false,
+          cancelled: true,
+          error: 'Acceso cancelado',
+        };
+      }
 
-      tokenClient.requestAccessToken({ prompt: 'select_account consent' });
-    } catch (err: any) {
-      console.error('Error launching Google OAuth2 TokenClient:', err);
-      resolve({
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        // Fallback to signInWithRedirect (Req 6)
+        try {
+          await signInWithRedirect(auth, provider);
+          return {
+            success: false,
+            cancelled: true,
+            error: 'Redirigiendo a Google para autorizar...',
+          };
+        } catch (redirectErr: any) {
+          return {
+            success: false,
+            error: redirectErr.message || 'Error al redirigir a Google.',
+          };
+        }
+      }
+
+      return {
         success: false,
-        error: 'No se pudo abrir el selector oficial de cuentas de Google.',
-      });
+        error: popupErr.message || 'Error al iniciar sesión con Google.',
+      };
     }
-  });
+
+    const user = userCredential.user;
+    const fullName = user.displayName || 'Usuario';
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || 'Usuario';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const email = user.email || '';
+    const photoURL = user.photoURL || undefined;
+
+    const profile = userProfileService.saveUserProfile({
+      firstName,
+      lastName,
+      email,
+      emailVerified: true,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    await syncUserProfile(user.uid, {
+      firstName,
+      lastName,
+      email,
+      emailVerified: true,
+      photoURL,
+      authProvider: 'google.com',
+    });
+
+    return {
+      success: true,
+      profile,
+    };
+  } catch (err: any) {
+    console.error('Firebase Auth Google Sign-In Error:', err);
+    return {
+      success: false,
+      error: err.message || 'Error al conectar con Google.',
+    };
+  }
+}
+
+/**
+ * Checks result after returning from signInWithRedirect
+ */
+export async function checkRedirectAuthResult(): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  error?: string;
+} | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      const user = result.user;
+      const fullName = user.displayName || 'Usuario';
+      const nameParts = fullName.trim().split(' ');
+      const firstName = nameParts[0] || 'Usuario';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      const email = user.email || '';
+      const photoURL = user.photoURL || undefined;
+
+      const profile = userProfileService.saveUserProfile({
+        firstName,
+        lastName,
+        email,
+        emailVerified: true,
+        photoURL,
+        authProvider: 'google.com',
+      });
+
+      await syncUserProfile(user.uid, {
+        firstName,
+        lastName,
+        email,
+        emailVerified: true,
+        photoURL,
+        authProvider: 'google.com',
+      });
+
+      return { success: true, profile };
+    }
+  } catch (err: any) {
+    console.error('Redirect result error:', err);
+    return { success: false, error: err.message };
+  }
+  return null;
 }
 
 /**

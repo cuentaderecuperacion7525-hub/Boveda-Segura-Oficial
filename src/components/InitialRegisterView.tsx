@@ -393,7 +393,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     setErrorMsg(null);
 
     try {
-      // 1. Forzar revocación/limpieza de sesión previa para exigir siempre la pantalla de selección y consentimiento de Google
+      // Forzar revocación / limpieza de sesión previa para exigir siempre la pantalla de selección y consentimiento de Google
       try {
         await signOutFromFirebase();
         if (window.google?.accounts?.id) {
@@ -403,39 +403,27 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
         // Continuar
       }
 
-      // 2. Invocar selector nativo oficial de Google Play Services / Android
-      let res = await signInWithNativeGoogle();
+      // Invocar autenticación con Google (signInWithPopup / fallback signInWithRedirect)
+      const webRes = await signInWithGoogle();
 
-      // En entorno Web (AI Studio preview / navegador), usar el cliente OAuth2 oficial con prompt 'select_account consent'
-      if (!res.success && res.error === 'web_environment') {
-        const webRes = await signInWithGoogle();
-        if (webRes.success && webRes.profile) {
-          showToast(`Acceso autorizado para ${webRes.profile.email}`, 'success');
-          onComplete();
-          return;
-        } else if (webRes.cancelled) {
-          return;
-        } else if (webRes.error) {
-          showToast(webRes.error, 'error');
-          return;
-        }
-      }
-
-      // 3. Solo cuando el usuario selecciona la cuenta y autoriza en el cuadro de Google, pasa a la pantalla del PIN
-      if (res.success && res.profile) {
-        showToast(`Acceso autorizado para ${res.profile.email}`, 'success');
+      if (webRes.success && webRes.profile) {
+        showToast(`Acceso autorizado para ${webRes.profile.email}`, 'success');
         onComplete();
         return;
-      }
-
-      if (res.cancelled) {
-        // El usuario canceló la tarjeta/cuadro oficial de Google
+      } else if (webRes.cancelled) {
+        showToast('Acceso cancelado', 'info');
+        setErrorMsg('Acceso cancelado');
+        return;
+      } else if (webRes.error) {
+        showToast(webRes.error, 'error');
+        setErrorMsg(webRes.error);
         return;
       }
 
-      showToast(res.error || 'No se pudo iniciar sesión con Google', 'error');
+      showToast('No se pudo iniciar sesión con Google', 'error');
     } catch {
-      showToast('Error al conectar con Google', 'error');
+      showToast('Acceso cancelado', 'info');
+      setErrorMsg('Acceso cancelado');
     } finally {
       setIsLoadingNative(false);
     }

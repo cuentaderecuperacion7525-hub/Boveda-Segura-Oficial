@@ -26,6 +26,11 @@ import { disableBiometrics } from './services/biometricService';
 import { disableRecoveryKey } from './services/recoveryKeyService';
 import { clearDuressPinHash } from './crypto/vaultCrypto';
 import { clearAllStoredLocalBackups } from './services/backupStorageService';
+import {
+  configureAuthPersistence,
+  checkRedirectAuthResult,
+  signOutFromFirebase,
+} from './services/firebaseAuthService';
 
 export default function App() {
   const [vaultStatus, setVaultStatus] = useState<'checking' | 'register' | 'setup' | 'locked' | 'unlocked'>('checking');
@@ -114,6 +119,7 @@ export default function App() {
       sessionStorage.removeItem('vault_session_pin');
       sessionStorage.removeItem('vault_is_duress_mode');
     } catch {}
+    signOutFromFirebase().catch(() => {});
     setMasterKey(null);
     setSessionPin(null);
     setVaultStatus('locked');
@@ -167,6 +173,12 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       try {
+        await configureAuthPersistence();
+        const redirectRes = await checkRedirectAuthResult();
+        if (redirectRes && redirectRes.success && redirectRes.profile) {
+          showToast(`Acceso autorizado para ${redirectRes.profile.email}`, 'success');
+        }
+
         await openVaultDatabase();
         const isInit = localStorage.getItem('vault_initialized');
         const saltHex = localStorage.getItem('vault_salt');
@@ -260,6 +272,7 @@ export default function App() {
 
   const handleResetVault = async () => {
     try {
+      await signOutFromFirebase();
       await clearVaultDatabase();
       await disableBiometrics();
       await disableRecoveryKey();
