@@ -13,13 +13,18 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import androidx.activity.result.ActivityResult;
-import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.tasks.Task;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,8 +37,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Plugin nativo de Capacitor para invocar el selector oficial de cuentas de Google (Google Play Services / Android OS).
- * Paso 1: Abre la lista nativa del sistema con las cuentas reales de Gmail guardadas en el teléfono.
- * Paso 2: Abre SIEMPRE la pantalla ORIGINAL de Google Play Services ("Permitir / Cancelar"),
+ * Paso 1: Abre la tarjeta oficial de Google Play Services desde la parte inferior con las cuentas de Gmail.
+ * Paso 2: Abre la pantalla oficial de Google ("Permitir / Cancelar"),
  * manteniendo viva la llamada de Capacitor (setKeepAlive) para devolver la respuesta al instante a la interfaz.
  */
 @CapacitorPlugin(name = "VaultGoogleAuth")
@@ -50,49 +55,14 @@ public class VaultGoogleAuthPlugin extends Plugin {
     private volatile String pendingDisplayName = null;
 
     @PluginMethod
-    public void getGoogleAccounts(PluginCall call) {
+    public void chooseGoogleAccount(final PluginCall call) {
         try {
-            Activity activity = getActivity();
-            if (activity == null) {
-                JSObject ret = new JSObject();
-                ret.put("accounts", new JSArray());
-                call.resolve(ret);
-                return;
-            }
-            AccountManager am = AccountManager.get(activity);
-            Account[] accounts = am.getAccountsByType("com.google");
-            JSArray list = new JSArray();
-            if (accounts != null) {
-                for (Account acc : accounts) {
-                    if (acc != null && acc.name != null && !acc.name.trim().isEmpty()) {
-                        JSObject item = new JSObject();
-                        item.put("email", acc.name.trim().toLowerCase());
-                        item.put("name", acc.name.trim());
-                        list.put(item);
-                    }
-                }
-            }
-            JSObject ret = new JSObject();
-            ret.put("accounts", list);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.w(TAG, "Aviso al leer cuentas de Google: " + e.getMessage());
-            JSObject ret = new JSObject();
-            ret.put("accounts", new JSArray());
-            call.resolve(ret);
-        }
-    }
-
-    @PluginMethod
-    public void chooseGoogleAccount(PluginCall call) {
-        try {
-            Activity activity = getActivity();
+            final Activity activity = getActivity();
             if (activity == null) {
                 call.reject("Actividad principal de Android no disponible");
                 return;
             }
 
-            // Mantener viva la llamada durante los diálogos nativos
             call.setKeepAlive(true);
             saveCall(call);
 
@@ -103,17 +73,84 @@ public class VaultGoogleAuthPlugin extends Plugin {
             pendingEmail = null;
             pendingDisplayName = null;
 
-            String selectedEmail = call.getString("selectedEmail");
-            if (selectedEmail != null && !selectedEmail.trim().isEmpty()) {
-                final String cleanEmail = selectedEmail.trim().toLowerCase();
-                String namePart = cleanEmail.split("@")[0];
-                final String displayName = namePart.length() > 0
-                    ? namePart.substring(0, 1).toUpperCase() + namePart.substring(1)
-                    : "Usuario";
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestProfile()
+                .build();
 
-                pendingEmail = cleanEmail;
-                pendingDisplayName = displayName;
-                requestOriginalGoogleConsent(activity, call, cleanEmail, displayName);
+            final GoogleSignInClient client = GoogleSignIn.getClient(activity, gso);
+
+            // Cerrar sesión previa para forzar a Google Play Services a desplegar SIEMPRE la tarjeta oficial de cuentas
+            client.signOut().addOnCompleteListener(activity, task -> {
+                try {
+                    Intent signInIntent = client.getSignInIntent();
+                    startActivityForResult(call, signInIntent, "handleOfficialGoogleSignInResult");
+                } catch (Exception e) {
+                    Log.w(TAG, "Error al lanzar Intent de Google Play Services, usando fallback: " + e.getMessage());
+                    launchAccountManagerFallback(call);
+                }
+            });
+        } catch (Exception e) {
+            Log.w(TAG, "Error al inicializar Google Play Services, usando fallback: " + e.getMessage());
+            launchAccountManagerFallback(call);
+        }
+    }
+
+    @ActivityCallback
+    public void handleOfficialGoogleSignInResult(PluginCall call, ActivityResult result) {
+        PluginCall activeCall = call != null ? call : (pendingCall != null ? pendingCall : getSavedCall());
+        if (activeCall == null) return;
+
+        int resultCode = result.getResultCode();
+        Intent data = result.getData();
+
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
+                GoogleSignInAccount account = task.getResult(ApiException.class);
+                if (account != null && account.getEmail() != null && !account.getEmail().trim().isEmpty()) {
+                    final String email = account.getEmail().trim().toLowerCase();
+                    final String displayName = account.getDisplayName() != null ? account.getDisplayName() : "";
+                    final String givenName = account.getGivenName() != null ? account.getGivenName() : "";
+                    final String familyName = account.getFamilyName() != null ? account.getFamilyName() : "";
+                    final String photoUrl = account.getPhotoUrl() != null ? account.getPhotoUrl().toString() : "";
+
+                    resolveSuccessWithProfile(
+                        activeCall,
+                        email,
+                        givenName.isEmpty() ? (displayName.isEmpty() ? "Usuario" : displayName) : givenName,
+                        familyName,
+                        photoUrl
+                    );
+                    return;
+                }
+            } catch (ApiException e) {
+                int statusCode = e.getStatusCode();
+                Log.w(TAG, "Google Sign-In API Exception code: " + statusCode + " - " + e.getMessage());
+                if (statusCode == 12501 || statusCode == 12502) {
+                    // 12501 = SIGN_IN_CANCELLED (el usuario cerró o canceló el cuadro de Google)
+                    resolveCancelled(activeCall);
+                    return;
+                }
+                // Si hubo error de configuración en Play Services, intentar con AccountManager
+                launchAccountManagerFallback(activeCall);
+                return;
+            }
+        }
+
+        if (resultCode == Activity.RESULT_CANCELED) {
+            resolveCancelled(activeCall);
+            return;
+        }
+
+        launchAccountManagerFallback(activeCall);
+    }
+
+    private void launchAccountManagerFallback(PluginCall call) {
+        try {
+            Activity activity = getActivity();
+            if (activity == null) {
+                resolveError(call, "Actividad no disponible");
                 return;
             }
 
@@ -146,10 +183,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
 
             startActivityForResult(call, intent, "handleAccountChoice");
         } catch (Exception e) {
-            Log.e(TAG, "Error al lanzar selector nativo de Google", e);
-            call.setKeepAlive(false);
-            freeSavedCall();
-            call.reject("No se pudo abrir el selector de Google: " + e.getMessage());
+            resolveError(call, "No se pudo abrir el selector: " + e.getMessage());
         }
     }
 
