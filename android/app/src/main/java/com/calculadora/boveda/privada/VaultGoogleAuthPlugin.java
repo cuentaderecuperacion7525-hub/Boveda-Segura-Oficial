@@ -47,6 +47,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
     private static final String OAUTH_SCOPE = "oauth2:https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email";
 
     private final AtomicBoolean isResolved = new AtomicBoolean(false);
+    private final AtomicBoolean isConsentInProgress = new AtomicBoolean(false);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private volatile boolean waitingForConsent = false;
     private volatile boolean consentDialogPausedActivity = false;
@@ -67,6 +68,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
             saveCall(call);
 
             isResolved.set(false);
+            isConsentInProgress.set(false);
             waitingForConsent = false;
             consentDialogPausedActivity = false;
             pendingCall = call;
@@ -390,6 +392,11 @@ public class VaultGoogleAuthPlugin extends Plugin {
         final String cleanEmail,
         final String displayName
     ) {
+        if (!isConsentInProgress.compareAndSet(false, true)) {
+            Log.i(TAG, "Consentimiento de Google ya en curso para " + cleanEmail + ", omitiendo llamada duplicada.");
+            return;
+        }
+
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -397,35 +404,14 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     final Account account = new Account(cleanEmail, "com.google");
                     final AccountManager am = AccountManager.get(activity);
 
-                    // Verificación rápida en segundo plano para revocar token previo y garantizar la ventana oficial
-                    try {
-                        AccountManagerFuture<Bundle> checkFuture = am.getAuthToken(
-                            account,
-                            OAUTH_SCOPE,
-                            null,
-                            false,
-                            null,
-                            null
-                        );
-                        Bundle checkBundle = checkFuture.getResult(1800, java.util.concurrent.TimeUnit.MILLISECONDS);
-                        if (checkBundle != null) {
-                            String activeToken = checkBundle.getString(AccountManager.KEY_AUTHTOKEN);
-                            if (activeToken != null && !activeToken.isEmpty()) {
-                                am.invalidateAuthToken("com.google", activeToken);
-                                revokeGoogleTokenSync(activeToken, 1800);
-                            }
-                        }
-                    } catch (Exception checkEx) {
-                        Log.d(TAG, "Aviso previo token: " + checkEx.getMessage());
-                    }
-
                     if (activity.isFinishing() || activity.isDestroyed()) {
+                        isConsentInProgress.set(false);
                         resolveSuccess(call, cleanEmail, displayName);
                         return;
                     }
 
                     // Lanzamos la solicitud en el hilo principal con la Activity para que Google Play Services
-                    // despliegue su cuadro oficial de confirmación ("Permitir / Cancelar")
+                    // despliegue su cuadro oficial de confirmación ("Permitir / Cancelar") EXACTAMENTE UNA VEZ
                     activity.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -450,7 +436,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                     try {
                                                         Bundle bundle = future.getResult(12, java.util.concurrent.TimeUnit.SECONDS);
                                                         if (bundle != null) {
-                                                            // Caso 1: Google Play Services devuelve el Intent explícito ("Permitir / Cancelar")
+                                                            // Si Google Play Services devuelve el Intent oficial ("Permitir / Cancelar")
                                                             if (bundle.containsKey(AccountManager.KEY_INTENT)) {
                                                                 Intent consentIntent = bundle.getParcelable(AccountManager.KEY_INTENT);
                                                                 if (consentIntent != null && !activity.isFinishing()) {
@@ -460,68 +446,20 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                                                 }
                                                             }
 
-                                                            // Caso 2: Si devolvió token pre-autorizado sin la ventana, invalidamos en caliente y reintentamos con la Activity
-                                                            final String cachedToken = bundle.getString(AccountManager.KEY_AUTHTOKEN);
-                                                            if (cachedToken != null && !cachedToken.isEmpty()) {
-                                                                am.invalidateAuthToken("com.google", cachedToken);
-                                                                revokeGoogleTokenSync(cachedToken, 2500);
-
-                                                                activity.runOnUiThread(new Runnable() {
-                                                                    @Override
-                                                                    public void run() {
-                                                                        try {
-                                                                            am.getAuthToken(
-                                                                                account,
-                                                                                OAUTH_SCOPE,
-                                                                                options,
-                                                                                activity,
-                                                                                new AccountManagerCallback<Bundle>() {
-                                                                                    @Override
-                                                                                    public void run(final AccountManagerFuture<Bundle> f2) {
-                                                                                        new Thread(new Runnable() {
-                                                                                            @Override
-                                                                                            public void run() {
-                                                                                                try {
-                                                                                                    Bundle b2 = f2.getResult(12, java.util.concurrent.TimeUnit.SECONDS);
-                                                                                                    if (b2 != null && b2.containsKey(AccountManager.KEY_INTENT)) {
-                                                                                                        Intent consentIntent = b2.getParcelable(AccountManager.KEY_INTENT);
-                                                                                                        if (consentIntent != null && !activity.isFinishing()) {
-                                                                                                            consentIntent.setFlags(consentIntent.getFlags() & ~Intent.FLAG_ACTIVITY_NEW_TASK);
-                                                                                                            startActivityForResult(call, consentIntent, "handleConsentResult");
-                                                                                                            return;
-                                                                                                        }
-                                                                                                    }
-                                                                                                    processTokenAndResolve(call, am, b2 != null ? b2 : bundle, cleanEmail, displayName);
-                                                                                                } catch (OperationCanceledException oce) {
-                                                                                                    resolveCancelled(call);
-                                                                                                } catch (Exception e) {
-                                                                                                    processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
-                                                                                                }
-                                                                                            }
-                                                                                        }).start();
-                                                                                    }
-                                                                                },
-                                                                                null
-                                                                            );
-                                                                        } catch (Exception uiEx2) {
-                                                                            processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
-                                                                        }
-                                                                    }
-                                                                });
-                                                                return;
-                                                            }
-
+                                                            // Si ya cuenta con autorización o token, procesar directamente sin volver a pedir confirmación
                                                             processTokenAndResolve(call, am, bundle, cleanEmail, displayName);
                                                             return;
                                                         }
                                                     } catch (OperationCanceledException oce) {
                                                         Log.i(TAG, "Usuario canceló en la pantalla oficial de Google");
+                                                        isConsentInProgress.set(false);
                                                         resolveCancelled(call);
                                                         return;
                                                     } catch (Exception e) {
                                                         Log.w(TAG, "Aviso en getAuthToken: " + e.getMessage());
                                                     }
 
+                                                    isConsentInProgress.set(false);
                                                     resolveSuccess(call, cleanEmail, displayName);
                                                 }
                                             }).start();
@@ -531,12 +469,14 @@ public class VaultGoogleAuthPlugin extends Plugin {
                                 );
                             } catch (Exception uiEx) {
                                 Log.e(TAG, "Error al abrir ventana de Google en UI thread", uiEx);
+                                isConsentInProgress.set(false);
                                 resolveSuccess(call, cleanEmail, displayName);
                             }
                         }
                     });
                 } catch (Exception e) {
                     Log.e(TAG, "Fallo al preparar solicitud original de Google", e);
+                    isConsentInProgress.set(false);
                     resolveSuccess(call, cleanEmail, displayName);
                 }
             }
@@ -682,6 +622,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
         if (!isResolved.compareAndSet(false, true)) {
             return;
         }
+        isConsentInProgress.set(false);
         waitingForConsent = false;
         consentDialogPausedActivity = false;
         pendingCall = null;
@@ -715,6 +656,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
         if (!isResolved.compareAndSet(false, true)) {
             return;
         }
+        isConsentInProgress.set(false);
         waitingForConsent = false;
         consentDialogPausedActivity = false;
         pendingCall = null;
@@ -743,6 +685,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
         if (!isResolved.compareAndSet(false, true)) {
             return;
         }
+        isConsentInProgress.set(false);
         waitingForConsent = false;
         consentDialogPausedActivity = false;
         pendingCall = null;
