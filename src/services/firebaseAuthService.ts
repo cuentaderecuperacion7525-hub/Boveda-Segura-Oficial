@@ -1,8 +1,6 @@
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import {
   GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   setPersistence,
   browserSessionPersistence,
   signInWithCredential,
@@ -240,8 +238,9 @@ export async function signInWithGoogleAccessToken(accessToken: string): Promise<
 }
 
 /**
- * Real Firebase Auth Google Sign-In using signInWithRedirect with prompt: 'select_account'
- * and browserSessionPersistence.
+ * Comprehensive Google Sign-In supporting both native Capacitor plugin and
+ * official Google Identity Services OAuth2 token client (accounts.google.com).
+ * Displays the official Google account chooser & consent overlay ("Seleccionar cuenta" / "Permitir").
  */
 export async function signInWithGoogle(): Promise<{
   success: boolean;
@@ -252,97 +251,132 @@ export async function signInWithGoogle(): Promise<{
   try {
     await configureAuthPersistence();
 
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-      prompt: 'select_account',
-    });
-
+    // 1. Clear previous auth sessions
     try {
-      await signInWithRedirect(auth, provider);
-      return {
-        success: false,
-        cancelled: true,
-        error: 'Redirigiendo a Google para seleccionar cuenta...',
-      };
-    } catch (redirectErr: any) {
-      console.error('signInWithRedirect error:', redirectErr);
-      const code = redirectErr?.code || 'unknown_code';
-      const message = redirectErr?.message || 'Error al iniciar la redirección con Google.';
-      return {
-        success: false,
-        error: `[${code}] ${message}`,
-      };
+      await FirebaseAuthentication.signOut();
+      await firebaseSignOut(auth);
+    } catch {}
+
+    // 2. Try native Capacitor FirebaseAuthentication plugin first
+    try {
+      const result = await FirebaseAuthentication.signInWithGoogle();
+      const idToken = result.credential?.idToken;
+      const accessToken = result.credential?.accessToken;
+
+      if (idToken || accessToken) {
+        const credential = GoogleAuthProvider.credential(idToken || null, accessToken || undefined);
+        const userCredential = await signInWithCredential(auth, credential);
+        const user = userCredential.user;
+
+        const fullName = user.displayName || 'Usuario';
+        const nameParts = fullName.trim().split(' ');
+        const firstName = nameParts[0] || 'Usuario';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const email = user.email || '';
+        const photoURL = user.photoURL || undefined;
+
+        const profile = userProfileService.saveUserProfile({
+          firstName,
+          lastName,
+          email,
+          emailVerified: true,
+          photoURL,
+          authProvider: 'google.com',
+        });
+
+        await syncUserProfile(user.uid, {
+          firstName,
+          lastName,
+          email,
+          emailVerified: true,
+          photoURL,
+          authProvider: 'google.com',
+        });
+
+        return { success: true, profile };
+      }
+    } catch (nativeErr: any) {
+      console.warn('Native Google Auth unavailable, switching to Google OAuth2 token client fallback:', nativeErr);
     }
+
+    // 3. Fallback: Google Identity Services OAuth2 TokenClient (accounts.google.com)
+    // Opens official account chooser + consent overlay directly on any device
+    return new Promise((resolve) => {
+      const oauth2 = window.google?.accounts?.oauth2;
+
+      if (!oauth2) {
+        resolve({
+          success: false,
+          error: 'El servicio de cuentas de Google aún está cargando. Intenta de nuevo en un segundo.',
+        });
+        return;
+      }
+
+      try {
+        const tokenClient = oauth2.initTokenClient({
+          client_id: GOOGLE_OAUTH_CLIENT_ID,
+          scope: 'openid email profile',
+          prompt: 'select_account consent',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error || !tokenResponse.access_token) {
+              resolve({
+                success: false,
+                cancelled: true,
+                error: 'Acceso cancelado',
+              });
+              return;
+            }
+
+            const res = await signInWithGoogleAccessToken(tokenResponse.access_token);
+            resolve(res);
+          },
+          error_callback: (err) => {
+            if (err?.type === 'popup_closed' || err?.type === 'user_canceled') {
+              resolve({
+                success: false,
+                cancelled: true,
+                error: 'Acceso cancelado',
+              });
+            } else {
+              resolve({
+                success: false,
+                error: 'Acceso cancelado',
+              });
+            }
+          },
+        });
+
+        tokenClient.requestAccessToken({ prompt: 'select_account consent' });
+      } catch (gsiErr: any) {
+        console.error('GSI TokenClient error:', gsiErr);
+        resolve({
+          success: false,
+          error: gsiErr?.message || 'Error al abrir el selector de cuentas de Google.',
+        });
+      }
+    });
   } catch (err: any) {
-    console.error('Firebase Auth Google Sign-In Error:', err);
-    const code = err?.code || 'unknown_code';
-    const message = err?.message || 'Error al conectar con Google.';
+    console.error('Firebase Google Sign-In Error:', err);
     return {
       success: false,
-      error: `[${code}] ${message}`,
+      error: err?.message || 'Error al conectar con Google.',
     };
   }
 }
 
 /**
- * Checks result after returning from signInWithRedirect via getRedirectResult(auth)
- */
-export async function checkRedirectAuthResult(): Promise<{
-  success: boolean;
-  profile?: UserProfile;
-  error?: string;
-} | null> {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result && result.user) {
-      const user = result.user;
-      const fullName = user.displayName || 'Usuario';
-      const nameParts = fullName.trim().split(' ');
-      const firstName = nameParts[0] || 'Usuario';
-      const lastName = nameParts.slice(1).join(' ') || '';
-      const email = user.email || '';
-      const photoURL = user.photoURL || undefined;
-
-      const profile = userProfileService.saveUserProfile({
-        firstName,
-        lastName,
-        email,
-        emailVerified: true,
-        photoURL,
-        authProvider: 'google.com',
-      });
-
-      await syncUserProfile(user.uid, {
-        firstName,
-        lastName,
-        email,
-        emailVerified: true,
-        photoURL,
-        authProvider: 'google.com',
-      });
-
-      return { success: true, profile };
-    }
-  } catch (err: any) {
-    console.error('Redirect result error:', err);
-    const code = err?.code || 'unknown_code';
-    const message = err?.message || 'Error al procesar la respuesta de Google.';
-    return {
-      success: false,
-      error: `[${code}] ${message}`,
-    };
-  }
-  return null;
-}
-
-/**
- * Sign out from Firebase Auth
+ * Sign out from both native Capacitor FirebaseAuthentication and Firebase Web Auth.
  */
 export async function signOutFromFirebase(): Promise<void> {
   try {
+    await FirebaseAuthentication.signOut();
+  } catch (err) {
+    console.warn('Native FirebaseAuthentication.signOut warning:', err);
+  }
+  try {
     await firebaseSignOut(auth);
   } catch (err) {
-    console.error('Error signing out:', err);
+    console.warn('Firebase Auth signOut warning:', err);
   }
 }
 

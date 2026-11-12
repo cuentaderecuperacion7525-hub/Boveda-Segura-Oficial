@@ -45,10 +45,31 @@ jobs:
       - name: Dar permisos a Gradle Wrapper
         run: chmod +x android/gradlew
 
+      - name: Crear keystore si no existe
+        run: |
+          if [ ! -f android/boveda.keystore ]; then
+            keytool -genkeypair -v -keystore android/boveda.keystore -alias boveda \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -keypass "${{ secrets.KEYSTORE_PASSWORD }}" \
+              -dname "CN=Boveda, OU=App, O=Boveda, C=MX"
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git add -f android/boveda.keystore
+            git commit -m "Agregar keystore fija"
+            git push
+          fi
+          echo "===== HUELLAS PARA FIREBASE ====="
+          keytool -list -v -keystore android/boveda.keystore -alias boveda -storepass "${{ secrets.KEYSTORE_PASSWORD }}" | grep -E "SHA1|SHA256"
+
       - name: Compilar APK Android con Gradle
         run: |
           cd android
           ./gradlew assembleDebug --stacktrace
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/android/boveda.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: boveda
+          KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
 
       - name: Preparar archivos para Release
         run: |

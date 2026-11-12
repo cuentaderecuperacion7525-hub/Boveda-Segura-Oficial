@@ -28,7 +28,6 @@ import { clearDuressPinHash } from './crypto/vaultCrypto';
 import { clearAllStoredLocalBackups } from './services/backupStorageService';
 import {
   configureAuthPersistence,
-  checkRedirectAuthResult,
   signOutFromFirebase,
 } from './services/firebaseAuthService';
 
@@ -174,14 +173,6 @@ export default function App() {
     const init = async () => {
       try {
         await configureAuthPersistence();
-        const redirectRes = await checkRedirectAuthResult();
-        if (redirectRes) {
-          if (redirectRes.success && redirectRes.profile) {
-            showToast(`Acceso autorizado para ${redirectRes.profile.email}`, 'success');
-          } else if (redirectRes.error) {
-            showToast(redirectRes.error, 'error');
-          }
-        }
 
         await openVaultDatabase();
         const isInit = localStorage.getItem('vault_initialized');

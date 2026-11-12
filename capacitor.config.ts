@@ -16,6 +16,10 @@ const config: CapacitorConfig = {
       insetsHandling: 'disable',
       style: 'LIGHT',
     },
+    FirebaseAuthentication: {
+      skipNativeAuth: true,
+      providers: ['google.com'],
+    },
   },
 };
 

@@ -31,13 +31,30 @@ android {
                 v2SigningEnabled true
             }
         }
+        release {
+            if (System.getenv("KEYSTORE_PATH") != null && file(System.getenv("KEYSTORE_PATH")).exists()) {
+                storeFile file(System.getenv("KEYSTORE_PATH"))
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+                v1SigningEnabled true
+                v2SigningEnabled true
+            } else if (file("${projectDir}/debug.keystore").exists()) {
+                storeFile file("${projectDir}/debug.keystore")
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+                v1SigningEnabled true
+                v2SigningEnabled true
+            }
+        }
     }
     buildTypes {
         debug {
-            signingConfig signingConfigs.debug
+            signingConfig (System.getenv("KEYSTORE_PATH") != null && file(System.getenv("KEYSTORE_PATH")).exists() ? signingConfigs.release : signingConfigs.debug)
         }
         release {
-            signingConfig signingConfigs.debug
+            signingConfig (System.getenv("KEYSTORE_PATH") != null && file(System.getenv("KEYSTORE_PATH")).exists() ? signingConfigs.release : signingConfigs.debug)
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
