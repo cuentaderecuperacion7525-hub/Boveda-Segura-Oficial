@@ -393,19 +393,32 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     setErrorMsg(null);
 
     try {
-      // Forzar revocación / limpieza de sesión previa para exigir siempre la pantalla de selección y consentimiento de Google
+      // 1. Limpiar sesión previa para exigir siempre la selección de cuenta
       try {
         await signOutFromFirebase();
         if (window.google?.accounts?.id) {
           (window.google.accounts.id as any)?.disableAutoSelect?.();
         }
-      } catch {
-        // Continuar
+      } catch {}
+
+      // 2. En Android (APK nativa), usar el selector nativo oficial de Google Accounts
+      const nativeRes = await signInWithNativeGoogle();
+      if (nativeRes.success && nativeRes.profile) {
+        showToast(`Acceso autorizado para ${nativeRes.profile.email}`, 'success');
+        onComplete();
+        return;
+      } else if (nativeRes.cancelled) {
+        showToast('Acceso cancelado', 'info');
+        setErrorMsg('Acceso cancelado');
+        return;
+      } else if (nativeRes.error && nativeRes.error !== 'web_environment') {
+        showToast(nativeRes.error, 'error');
+        setErrorMsg(nativeRes.error);
+        return;
       }
 
-      // Invocar autenticación con Google (signInWithPopup / fallback signInWithRedirect)
+      // 3. En entorno Web / AI Studio, usar el selector oficial de Google (GSI / accounts.google.com)
       const webRes = await signInWithGoogle();
-
       if (webRes.success && webRes.profile) {
         showToast(`Acceso autorizado para ${webRes.profile.email}`, 'success');
         onComplete();
@@ -421,9 +434,10 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       }
 
       showToast('No se pudo iniciar sesión con Google', 'error');
-    } catch {
-      showToast('Acceso cancelado', 'info');
-      setErrorMsg('Acceso cancelado');
+    } catch (err: any) {
+      const msg = err?.message || 'Acceso cancelado';
+      showToast(msg, 'error');
+      setErrorMsg(msg);
     } finally {
       setIsLoadingNative(false);
     }
