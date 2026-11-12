@@ -240,8 +240,8 @@ export async function signInWithGoogleAccessToken(accessToken: string): Promise<
 }
 
 /**
- * Real Firebase Auth Google Sign-In with prompt: 'consent select_account'
- * and browserSessionPersistence. Handles popup blocks by falling back to signInWithRedirect.
+ * Real Firebase Auth Google Sign-In using signInWithRedirect with prompt: 'select_account'
+ * and browserSessionPersistence.
  */
 export async function signInWithGoogle(): Promise<{
   success: boolean;
@@ -254,95 +254,38 @@ export async function signInWithGoogle(): Promise<{
 
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      prompt: 'consent select_account',
+      prompt: 'select_account',
     });
 
-    let userCredential;
     try {
-      userCredential = await signInWithPopup(auth, provider);
-    } catch (popupErr: any) {
-      console.warn('signInWithPopup error:', popupErr);
-      const code = popupErr?.code || '';
-
-      if (
-        code === 'auth/popup-closed-by-user' ||
-        code === 'auth/cancelled-popup-request' ||
-        code === 'auth/user-cancelled'
-      ) {
-        return {
-          success: false,
-          cancelled: true,
-          error: 'Acceso cancelado',
-        };
-      }
-
-      if (
-        code === 'auth/popup-blocked' ||
-        code === 'auth/operation-not-supported-in-this-environment'
-      ) {
-        // Fallback to signInWithRedirect (Req 6)
-        try {
-          await signInWithRedirect(auth, provider);
-          return {
-            success: false,
-            cancelled: true,
-            error: 'Redirigiendo a Google para autorizar...',
-          };
-        } catch (redirectErr: any) {
-          return {
-            success: false,
-            error: redirectErr.message || 'Error al redirigir a Google.',
-          };
-        }
-      }
-
+      await signInWithRedirect(auth, provider);
       return {
         success: false,
-        error: popupErr.message || 'Error al iniciar sesión con Google.',
+        cancelled: true,
+        error: 'Redirigiendo a Google para seleccionar cuenta...',
+      };
+    } catch (redirectErr: any) {
+      console.error('signInWithRedirect error:', redirectErr);
+      const code = redirectErr?.code || 'unknown_code';
+      const message = redirectErr?.message || 'Error al iniciar la redirección con Google.';
+      return {
+        success: false,
+        error: `[${code}] ${message}`,
       };
     }
-
-    const user = userCredential.user;
-    const fullName = user.displayName || 'Usuario';
-    const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0] || 'Usuario';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    const email = user.email || '';
-    const photoURL = user.photoURL || undefined;
-
-    const profile = userProfileService.saveUserProfile({
-      firstName,
-      lastName,
-      email,
-      emailVerified: true,
-      photoURL,
-      authProvider: 'google.com',
-    });
-
-    await syncUserProfile(user.uid, {
-      firstName,
-      lastName,
-      email,
-      emailVerified: true,
-      photoURL,
-      authProvider: 'google.com',
-    });
-
-    return {
-      success: true,
-      profile,
-    };
   } catch (err: any) {
     console.error('Firebase Auth Google Sign-In Error:', err);
+    const code = err?.code || 'unknown_code';
+    const message = err?.message || 'Error al conectar con Google.';
     return {
       success: false,
-      error: err.message || 'Error al conectar con Google.',
+      error: `[${code}] ${message}`,
     };
   }
 }
 
 /**
- * Checks result after returning from signInWithRedirect
+ * Checks result after returning from signInWithRedirect via getRedirectResult(auth)
  */
 export async function checkRedirectAuthResult(): Promise<{
   success: boolean;
@@ -382,7 +325,12 @@ export async function checkRedirectAuthResult(): Promise<{
     }
   } catch (err: any) {
     console.error('Redirect result error:', err);
-    return { success: false, error: err.message };
+    const code = err?.code || 'unknown_code';
+    const message = err?.message || 'Error al procesar la respuesta de Google.';
+    return {
+      success: false,
+      error: `[${code}] ${message}`,
+    };
   }
   return null;
 }

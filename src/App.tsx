@@ -175,8 +175,12 @@ export default function App() {
       try {
         await configureAuthPersistence();
         const redirectRes = await checkRedirectAuthResult();
-        if (redirectRes && redirectRes.success && redirectRes.profile) {
-          showToast(`Acceso autorizado para ${redirectRes.profile.email}`, 'success');
+        if (redirectRes) {
+          if (redirectRes.success && redirectRes.profile) {
+            showToast(`Acceso autorizado para ${redirectRes.profile.email}`, 'success');
+          } else if (redirectRes.error) {
+            showToast(redirectRes.error, 'error');
+          }
         }
 
         await openVaultDatabase();
