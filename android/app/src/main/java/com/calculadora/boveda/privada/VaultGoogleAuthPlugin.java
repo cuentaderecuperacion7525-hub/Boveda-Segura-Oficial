@@ -112,6 +112,20 @@ public class VaultGoogleAuthPlugin extends Plugin {
                 if (account != null && account.getEmail() != null && !account.getEmail().trim().isEmpty()) {
                     final String email = account.getEmail().trim().toLowerCase();
                     final String displayName = account.getDisplayName() != null ? account.getDisplayName() : "";
+
+                    final Activity activity = getActivity();
+                    if (activity != null) {
+                        pendingCall = activeCall;
+                        pendingEmail = email;
+                        pendingDisplayName = displayName;
+                        waitingForConsent = false;
+                        consentDialogPausedActivity = false;
+
+                        Log.i(TAG, "Cuenta seleccionada en Google Play Services: " + email + ". Abriendo ventana oficial de consentimiento.");
+                        requestOriginalGoogleConsent(activity, activeCall, email, displayName);
+                        return;
+                    }
+
                     final String givenName = account.getGivenName() != null ? account.getGivenName() : "";
                     final String familyName = account.getFamilyName() != null ? account.getFamilyName() : "";
                     final String photoUrl = account.getPhotoUrl() != null ? account.getPhotoUrl().toString() : "";
@@ -135,7 +149,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
                 }
 
                 // Error 10 (DEVELOPER_ERROR por SHA-1 pendiente) o 12500:
-                // La cuenta fue seleccionada en la tarjeta oficial; recuperamos la cuenta de Google del teléfono
+                // La cuenta fue seleccionada en la tarjeta oficial; solicitamos consentimiento oficial de Google
                 if (recoverAccountFromDevice(activeCall)) {
                     return;
                 }
@@ -172,8 +186,13 @@ public class VaultGoogleAuthPlugin extends Plugin {
                     final String displayName = namePart.length() > 0
                         ? namePart.substring(0, 1).toUpperCase() + namePart.substring(1)
                         : "Usuario";
-                    Log.i(TAG, "Cuenta recuperada exitosamente del dispositivo tras selector oficial: " + email);
-                    resolveSuccessWithProfile(call, email, displayName, "", "");
+                    Log.i(TAG, "Cuenta recuperada exitosamente del dispositivo tras selector oficial: " + email + ". Abriendo ventana oficial de consentimiento.");
+                    pendingCall = call;
+                    pendingEmail = email;
+                    pendingDisplayName = displayName;
+                    waitingForConsent = false;
+                    consentDialogPausedActivity = false;
+                    requestOriginalGoogleConsent(activity, call, email, displayName);
                     return true;
                 }
             }
