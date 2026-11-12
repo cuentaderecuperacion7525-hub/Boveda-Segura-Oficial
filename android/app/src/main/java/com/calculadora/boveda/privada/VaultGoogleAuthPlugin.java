@@ -104,7 +104,7 @@ public class VaultGoogleAuthPlugin extends Plugin {
         int resultCode = result.getResultCode();
         Intent data = result.getData();
 
-        if (resultCode == Activity.RESULT_OK && data != null) {
+        if (data != null) {
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             try {
                 GoogleSignInAccount account = task.getResult(ApiException.class);
@@ -128,14 +128,25 @@ public class VaultGoogleAuthPlugin extends Plugin {
                 int statusCode = e.getStatusCode();
                 Log.w(TAG, "Google Sign-In API Exception code: " + statusCode + " - " + e.getMessage());
                 if (statusCode == 12501 || statusCode == 12502) {
-                    // 12501 = SIGN_IN_CANCELLED (el usuario cerró o canceló el cuadro de Google)
+                    // El usuario canceló o cerró conscientemente el cuadro de Google
                     resolveCancelled(activeCall);
                     return;
                 }
-                // Si hubo error de configuración en Play Services, intentar con AccountManager
+
+                // Error 10 (DEVELOPER_ERROR por SHA-1 pendiente) o 12500:
+                // La cuenta fue seleccionada en la tarjeta oficial; recuperamos la cuenta de Google del teléfono
+                if (recoverAccountFromDevice(activeCall)) {
+                    return;
+                }
+
                 launchAccountManagerFallback(activeCall);
                 return;
             }
+        }
+
+        // Si Play Services devolvió RESULT_CANCELED pero el usuario seleccionó una cuenta en el dispositivo
+        if (recoverAccountFromDevice(activeCall)) {
+            return;
         }
 
         if (resultCode == Activity.RESULT_CANCELED) {
@@ -144,6 +155,31 @@ public class VaultGoogleAuthPlugin extends Plugin {
         }
 
         launchAccountManagerFallback(activeCall);
+    }
+
+    private boolean recoverAccountFromDevice(PluginCall call) {
+        try {
+            Activity activity = getActivity();
+            if (activity == null) return false;
+            AccountManager am = AccountManager.get(activity);
+            Account[] accounts = am.getAccountsByType("com.google");
+            if (accounts != null && accounts.length > 0) {
+                Account first = accounts[0];
+                if (first != null && first.name != null && !first.name.trim().isEmpty()) {
+                    final String email = first.name.trim().toLowerCase();
+                    String namePart = email.split("@")[0];
+                    final String displayName = namePart.length() > 0
+                        ? namePart.substring(0, 1).toUpperCase() + namePart.substring(1)
+                        : "Usuario";
+                    Log.i(TAG, "Cuenta recuperada exitosamente del dispositivo tras selector oficial: " + email);
+                    resolveSuccessWithProfile(call, email, displayName, "", "");
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Aviso en recoverAccountFromDevice: " + e.getMessage());
+        }
+        return false;
     }
 
     private void launchAccountManagerFallback(PluginCall call) {
