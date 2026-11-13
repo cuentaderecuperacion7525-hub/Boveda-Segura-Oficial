@@ -10,10 +10,10 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.17';
+export const APP_VERSION = '1.0.18';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2017;
-export const CURRENT_RELEASE_DATE = '12 de noviembre de 2026';
+export const CURRENT_BUILD_NUMBER = 2018;
+export const CURRENT_RELEASE_DATE = '13 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
   'Actualización v1.0.16: Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic.',
