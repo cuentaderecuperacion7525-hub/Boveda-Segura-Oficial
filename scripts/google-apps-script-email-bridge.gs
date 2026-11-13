@@ -183,7 +183,11 @@ function doGet(e) {
   var token = String(params.token || '').trim();
 
   if (action === 'ping') {
-    return jsonResponse({ ok: true, service: 'mi-boveda-email-bridge', active: true });
+    var quota = 0;
+    try {
+      quota = MailApp.getRemainingDailyQuota();
+    } catch (qErr) {}
+    return jsonResponse({ ok: true, service: 'mi-boveda-email-bridge', active: true, remainingQuota: quota });
   }
 
   if (action === 'status') {
@@ -435,6 +439,19 @@ function doPost(e) {
       safeLink +
       '" style="color: #6b7280; text-decoration: underline; font-size: 9px;">Confirmar cuenta tocando este enlace</a>' +
       '</span></div></div>';
+
+    var remainingQuota = 1;
+    try {
+      remainingQuota = MailApp.getRemainingDailyQuota();
+    } catch (qErr) {}
+    if (remainingQuota <= 0) {
+      return jsonResponse({
+        ok: false,
+        success: false,
+        quotaExceeded: true,
+        error: 'Cuota diaria de envío de Google Apps Script agotada.',
+      });
+    }
 
     MailApp.sendEmail({
       to: email,

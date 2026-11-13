@@ -259,7 +259,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       setForgotFirstName(targetName);
 
       const sendRes = await sendEmailPin(cleanEmail, targetName);
-      if (sendRes.success) {
+      if (sendRes.success && sendRes.delivered !== false) {
         setForgotToken(sendRes.token || null);
         setForgotCode('');
         setForgotSecondsLeft(300);

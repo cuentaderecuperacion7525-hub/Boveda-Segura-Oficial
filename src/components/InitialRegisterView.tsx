@@ -483,7 +483,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
     setIsSubmitting(true);
     try {
       const res = await sendEmailPin(cleanEmail, fullDisplayName);
-      if (res.success) {
+      if (res.success && res.delivered !== false) {
         if (res.token) {
           setPendingToken(res.token);
         }
@@ -496,7 +496,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           inputRefs.current[0]?.focus();
         }, 120);
       } else {
-        setErrorMsg(res.error || 'No se pudo enviar el correo de verificación.');
+        setErrorMsg(res.error || 'No se pudo entregar el correo de verificación.');
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error al enviar el correo de verificación.');
@@ -569,7 +569,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
       if (checkRes.lastName !== undefined) setLastName(checkRes.lastName);
 
       const res = await sendEmailPin(cleanEmail, checkRes.firstName || 'Usuario');
-      if (res.success) {
+      if (res.success && res.delivered !== false) {
         if (res.token) {
           setPendingToken(res.token);
         }
@@ -582,7 +582,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
           inputRefs.current[0]?.focus();
         }, 120);
       } else {
-        setErrorMsg(res.error || 'No se pudo enviar el correo de recuperación.');
+        setErrorMsg(res.error || 'No se pudo entregar el correo de recuperación.');
       }
     } catch (err: any) {
       setErrorMsg(err?.message || 'Error al validar el correo electrónico.');
@@ -757,7 +757,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
 
           {/* Contador de vigencia de 5 minutos */}
           <div
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium mb-5 border ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium mb-5 border tabular-nums ${
               isExpired
                 ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                 : secondsLeft <= 60
@@ -828,7 +828,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
               type="button"
               onClick={() => (isForgotFlow ? handleForgotEmailSubmit() : handleRegisterSubmit())}
               disabled={isSubmitting || resendCooldown > 0}
-              className="inline-flex items-center gap-1.5 text-[#00e5ff] hover:underline font-semibold cursor-pointer disabled:opacity-45 disabled:no-underline"
+              className="min-h-[44px] inline-flex items-center gap-1.5 text-[#00e5ff] hover:underline font-semibold cursor-pointer disabled:opacity-45 disabled:no-underline tabular-nums"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
               <span>
@@ -846,7 +846,7 @@ export const InitialRegisterView: React.FC<InitialRegisterViewProps> = ({
                 setStep(isForgotFlow ? 'forgot_email' : 'register');
                 setErrorMsg(null);
               }}
-              className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 hover:underline cursor-pointer"
+              className="min-h-[44px] inline-flex items-center gap-1 text-slate-400 hover:text-slate-200 hover:underline cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Cambiar correo</span>
