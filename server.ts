@@ -23,14 +23,18 @@ app.use(express.json());
 // Configuración de envío de correo:
 // Opción A: Google Apps Script Web App URL (APPS_SCRIPT_EMAIL_URL o VITE_APPS_SCRIPT_EMAIL_URL)
 // Opción B: Respaldo servidor vía Resend (RESEND_API_KEY) o Gmail SMTP (GMAIL_USER + GMAIL_PASS)
-const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+const OLD_APPS_SCRIPT_EMAIL_URL =
   'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
+const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+  'https://script.google.com/macros/s/AKfycbzA1tWZSNhFMI18cNh2KxruP7dogOu8-TuA_aICRB5l8CMz7Iv72ZKI2MyVZv5_jXuf/exec';
 const cleanEnv = (v?: string) => (v || '').trim().replace(/^["']|["']$/g, '').trim();
 
+const rawAppsScriptEnv =
+  cleanEnv(process.env.APPS_SCRIPT_EMAIL_URL) || cleanEnv(process.env.VITE_APPS_SCRIPT_EMAIL_URL);
 const APPS_SCRIPT_EMAIL_URL = (
-  cleanEnv(process.env.APPS_SCRIPT_EMAIL_URL) ||
-  cleanEnv(process.env.VITE_APPS_SCRIPT_EMAIL_URL) ||
-  DEFAULT_APPS_SCRIPT_EMAIL_URL
+  rawAppsScriptEnv && rawAppsScriptEnv !== OLD_APPS_SCRIPT_EMAIL_URL
+    ? rawAppsScriptEnv
+    : DEFAULT_APPS_SCRIPT_EMAIL_URL
 ).trim();
 const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
 const RESEND_FROM_EMAIL = cleanEnv(process.env.RESEND_FROM_EMAIL) || 'Mi Bóveda <onboarding@resend.dev>';
@@ -222,7 +226,7 @@ async function enviarCorreoConfirmacion(
 
   let confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre, options?.originBase);
   const serverConfirmLink = buildServerConfirmationUrl(token, options?.originBase);
-  const subject = `Mi Bóveda: Tu código de verificación (${cleanPin})`;
+  const subject = 'Código de verificación - Mi Bóveda';
   const buildText = (link: string) =>
     `Hola ${cleanNombre},\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n${cleanPin}\n\nEste código es de un solo uso y vence en 5 minutos.\n\n¿Prefieres confirmar directamente con enlace? Abre: ${link}\n\nSaludos,\nMi Bóveda`;
   const buildHtml = (link: string) => `

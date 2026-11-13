@@ -15,20 +15,22 @@ const FIRESTORE_COLLECTION_URL = `https://firestore.googleapis.com/v1/projects/$
 
 export const EMAIL_CODE_VALIDITY_MS = 5 * 60 * 1000; // 5 minutos exactos
 
-const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+const OLD_APPS_SCRIPT_EMAIL_URL =
   'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
+const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+  'https://script.google.com/macros/s/AKfycbzA1tWZSNhFMI18cNh2KxruP7dogOu8-TuA_aICRB5l8CMz7Iv72ZKI2MyVZv5_jXuf/exec';
 
 export function getAppsScriptEmailUrl(): string {
   const envUrl = String(import.meta.env.VITE_APPS_SCRIPT_EMAIL_URL || '')
     .trim()
     .replace(/^["']|["']$/g, '')
     .trim();
-  if (envUrl.startsWith('https://script.google.com/macros/s/')) {
+  if (envUrl.startsWith('https://script.google.com/macros/s/') && envUrl !== OLD_APPS_SCRIPT_EMAIL_URL) {
     return envUrl;
   }
   try {
     const localUrl = String(localStorage.getItem('vault_apps_script_url') || '').trim();
-    if (localUrl.startsWith('https://script.google.com/macros/s/')) {
+    if (localUrl.startsWith('https://script.google.com/macros/s/') && localUrl !== OLD_APPS_SCRIPT_EMAIL_URL) {
       return localUrl;
     }
   } catch {}

@@ -410,7 +410,7 @@ function doPost(e) {
     var safePin = escapeHtml(pin);
     var safeLink = escapeHtml(confirmLink);
 
-    var subject = 'Mi Bóveda: Tu código de verificación (' + pin + ')';
+    var subject = 'Código de verificación - Mi Bóveda';
     var textBody =
       'Hola ' +
       firstName +
