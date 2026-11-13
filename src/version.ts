@@ -10,9 +10,9 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.19';
+export const APP_VERSION = '1.0.20';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2019;
+export const CURRENT_BUILD_NUMBER = 2020;
 export const CURRENT_RELEASE_DATE = '13 de noviembre de 2026';
 
 export const CURRENT_CHANGELOG: string[] = [
