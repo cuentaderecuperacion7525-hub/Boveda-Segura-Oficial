@@ -5,8 +5,9 @@ import {
   Download,
   Check,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
-import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
+import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress, openApkInBrowser } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER } from '../version';
 const APP_VERSION = CURRENT_APP_VERSION;
@@ -23,11 +24,7 @@ interface BovedaUpdaterProps {
 
 export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const cachedCheck = updateService.getLastCheckResult();
-  const isCachedTrulyNew = Boolean(
-    cachedCheck?.hasUpdate &&
-    cachedCheck?.latestVersion &&
-    cachedCheck.latestVersion.trim().replace(/^v/, '') !== APP_VERSION.trim().replace(/^v/, '')
-  );
+  const isCachedTrulyNew = Boolean(cachedCheck?.hasUpdate);
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(isCachedTrulyNew);
   const [downloadUrl, setDownloadUrl] = useState<string>(() => cachedCheck?.downloadUrl || '');
   const [serverVersionName, setServerVersionName] = useState<string>(() => cachedCheck?.latestVersion || '');
@@ -65,17 +62,13 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       })
       .then((data) => {
         if (data && typeof data.fecha === "string") {
-          setActiveReleaseDate(data.fecha);
+          setActiveReleaseDate((prev) => prev || data.fecha);
         }
         if (data && Array.isArray(data.cambios) && data.cambios.length > 0) {
-          setCambiosNovedades(data.cambios);
-        } else {
-          setCambiosNovedades([]);
+          setCambiosNovedades((prev) => (prev.length > 0 ? prev : data.cambios));
         }
       })
-      .catch(() => {
-        setCambiosNovedades([]);
-      });
+      .catch(() => {});
   }, []);
 
   // Lógica unificada de verificación de versiones
@@ -112,13 +105,41 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       }
       setLastCheckTime(getFormattedTime());
 
-      const cleanServer = (res.latestVersion || '').trim().replace(/^v/, '');
-      const cleanInstalled = (nombreActual || '').trim().replace(/^v/, '');
+      if (res.error) {
+        setUpdateAvailable(false);
+        if (esManual) {
+          setStatus(res.error);
+        }
+        return;
+      }
 
-      if (res.hasUpdate && cleanServer !== cleanInstalled) {
+      if (res.hasUpdate) {
         setUpdateAvailable(true);
         setDownloadUrl(res.downloadUrl || '');
-        setStatus(`Nueva versión v${res.latestVersion} lista para instalar.`);
+        if (res.releaseDate) {
+          setActiveReleaseDate(res.releaseDate);
+        }
+        if (Array.isArray(res.changelog) && res.changelog.length > 0) {
+          setCambiosNovedades(
+            res.changelog.map((line) => {
+              const colonIdx = line.indexOf(':');
+              if (colonIdx > 0 && colonIdx < 48) {
+                return {
+                  titulo: line.slice(0, colonIdx).trim(),
+                  texto: line.slice(colonIdx + 1).trim(),
+                };
+              }
+              return { texto: line };
+            })
+          );
+        }
+
+        const isSameTag = (res.latestVersion || '').trim().replace(/^v/, '') === (nombreActual || '').trim().replace(/^v/, '');
+        setStatus(
+          isSameTag && res.buildNumber
+            ? `Nueva compilación v${res.latestVersion} (build ${res.buildNumber}) lista para instalar.`
+            : `Nueva versión v${res.latestVersion} lista para instalar.`
+        );
       } else {
         setUpdateAvailable(false);
         if (esManual) {
@@ -154,6 +175,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
 
     let listenerHandle: { remove: () => void } | null = null;
     let progressTimer: any = null;
+    let didFinish = false;
 
     try {
       listenerHandle = await onDownloadProgress((p) => {
@@ -170,7 +192,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
           } else if (clamped < 75) {
             setDownloadStage('Transfiriendo archivos del sistema...');
           } else if (clamped < 95) {
-            setDownloadStage('Comprobando firma SHA-256...');
+            setDownloadStage('Verificando integridad del paquete...');
           } else {
             setDownloadStage('Finalizando descarga...');
           }
@@ -185,7 +207,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
             if (next >= 30 && next < 65) {
               setDownloadStage('Descargando paquete APK...');
             } else if (next >= 65 && next < 88) {
-              setDownloadStage('Verificando integridad y firma SHA-256...');
+              setDownloadStage('Verificando integridad del paquete...');
             } else if (next >= 88) {
               setDownloadStage('Preparando instalador de Android...');
             }
@@ -198,13 +220,25 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       const res = await downloadAndInstallApk(downloadUrl);
 
       clearInterval(progressTimer);
+
+      if (res.needsPermission) {
+        didFinish = true;
+        setIsInstalling(false);
+        setInstallCompleted(false);
+        setDownloadPercent(0);
+        setDownloadStage('');
+        setStatus(res.message || "Activa 'Permitir desde esta fuente' en Ajustes y vuelve a tocar 'Instalar actualización'.");
+        return;
+      }
+
+      didFinish = true;
       setDownloadPercent(100);
       setInstallCompleted(true);
       setDownloadStage('¡Descarga completada! Abriendo instalador...');
       setStatus(res.message || 'Instalador abierto. Confirma la instalación.');
     } catch (err: any) {
       clearInterval(progressTimer);
-      setStatus(err.message || 'No se pudo completar la instalación automática.');
+      setStatus(err.message || 'No se pudo completar la instalación automática. Puedes descargar el APK en el navegador.');
       setDownloadStage('');
       setIsInstalling(false);
       setDownloadPercent(0);
@@ -213,11 +247,21 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       if (listenerHandle && typeof listenerHandle.remove === 'function') {
         listenerHandle.remove();
       }
-      setTimeout(() => {
-        if (!installCompleted) {
+      if (!didFinish) {
+        setTimeout(() => {
           setIsInstalling(false);
-        }
-      }, 6000);
+        }, 5000);
+      }
+    }
+  };
+
+  const abrirDescargaExterna = async () => {
+    if (!downloadUrl) return;
+    try {
+      await openApkInBrowser(downloadUrl);
+      setStatus('Descarga iniciada en el navegador. Abre el archivo APK descargado para actualizar.');
+    } catch (err: any) {
+      setStatus(err?.message || 'No se pudo abrir el enlace de descarga externa.');
     }
   };
 
@@ -256,7 +300,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         <div className="w-full grid grid-cols-2 gap-3 mb-4 text-left relative z-10">
           <div className="bg-[#080d19]/90 border border-slate-800/70 rounded-2xl p-3.5">
             <span className="text-xs text-slate-400 block mb-1">Instalada</span>
-            <span className="text-base font-bold text-white font-mono block truncate">
+            <span className="text-base font-bold text-white font-mono tabular-nums block truncate">
               v{installedVersionName}
             </span>
           </div>
@@ -271,16 +315,16 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         </div>
 
         {/* Texto de última comprobación */}
-        <p className="text-xs text-slate-400 text-center mb-5 font-normal relative z-10">
+        <p className="text-xs text-slate-400 text-center mb-5 font-normal relative z-10 tabular-nums">
           Última comprobación · {lastCheckTime}
         </p>
 
         {/* Estado en curso de instalación si aplica */}
         {isInstalling && (
           <div className="w-full p-4 mb-4 rounded-2xl bg-slate-950/90 border border-indigo-500/60 space-y-2.5 text-left relative z-10">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-xs gap-2">
               <span className="font-semibold text-white truncate">{downloadStage}</span>
-              <span className="font-mono text-xs font-bold text-blue-300">{downloadPercent}%</span>
+              <span className="font-mono tabular-nums text-xs font-bold text-blue-300 shrink-0">{downloadPercent}%</span>
             </div>
             <div className="w-full h-2.5 rounded-full bg-slate-900 border border-slate-700/80 p-0.5 overflow-hidden">
               <div
@@ -289,38 +333,51 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
               />
             </div>
             {downloadSize && (
-              <span className="text-[11px] text-slate-400 font-mono block text-right">{downloadSize}</span>
+              <span className="text-[11px] text-slate-400 font-mono tabular-nums block text-right">{downloadSize}</span>
             )}
           </div>
         )}
 
         {/* Mensaje de estado dinámico */}
         {status && !isInstalling && (
-          <div className="w-full p-3 mb-4 rounded-2xl text-xs font-medium border bg-slate-950/60 border-slate-800 text-slate-300 text-left relative z-10">
+          <div className="w-full p-3 mb-4 rounded-2xl text-xs font-medium border bg-slate-950/60 border-slate-800 text-slate-300 text-left relative z-10 leading-relaxed">
             {status}
           </div>
         )}
 
-        {/* Botón de Acción Proporcional y Elegante con Gradiente */}
-        <div className="w-full flex justify-center relative z-10">
+        {/* Botones de Acción Proporcionales con área táctil >= 44px */}
+        <div className="w-full flex flex-col items-center gap-2.5 relative z-10">
           {updateAvailable ? (
-            <button
-              type="button"
-              onClick={ejecutarActualizacion}
-              disabled={isInstalling}
-              className="w-full max-w-[260px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-            >
-              <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
-              <span>
-                {isInstalling ? 'Instalando...' : 'Instalar actualización'}
-              </span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={ejecutarActualizacion}
+                disabled={isInstalling}
+                className="w-full max-w-[270px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
+                <span>
+                  {isInstalling ? 'Instalando...' : 'Instalar actualización'}
+                </span>
+              </button>
+
+              {downloadUrl && !isInstalling && (
+                <button
+                  type="button"
+                  onClick={abrirDescargaExterna}
+                  className="w-full max-w-[270px] min-h-[44px] py-2 px-4 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span>Descargar APK en navegador</span>
+                </button>
+              )}
+            </>
           ) : (
             <button
               type="button"
               onClick={() => verificarActualizaciones(true)}
               disabled={loading || isInstalling}
-              className="w-full max-w-[260px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              className="w-full max-w-[260px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span>{loading ? 'Buscando...' : 'Buscar actualizaciones'}</span>

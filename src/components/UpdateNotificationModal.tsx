@@ -2,17 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   RefreshCw, 
-  ArrowUpCircle, 
   CheckCircle2, 
   X, 
-  ChevronRight, 
   ShieldCheck, 
   Calendar,
   Layers,
-  Download
+  Download,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
-import { downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
+import { downloadAndInstallApk, onDownloadProgress, openApkInBrowser } from '../services/nativeUpdaterBridge';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface UpdateNotificationModalProps {
@@ -35,7 +35,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
   const [downloadStage, setDownloadStage] = useState<string>('Iniciando descarga segura...');
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [isComplete, setIsComplete] = useState<boolean>(false);
-  const [showFullChangelog, setShowFullChangelog] = useState(!viewNotesOnly);
+  const [installError, setInstallError] = useState<string | null>(null);
   const [dynamicNotes, setDynamicNotes] = useState<{ fecha: string; cambios: string[] }>({
     fecha: CURRENT_RELEASE_DATE,
     cambios: CURRENT_CHANGELOG,
@@ -80,6 +80,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
   const handleApplyUpdate = async () => {
     setIsApplying(true);
     setIsComplete(false);
+    setInstallError(null);
     setDownloadPercent(8);
     setDownloadStage('Conectando con el servidor y preparando canal seguro...');
 
@@ -101,7 +102,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
           } else if (clamped < 80) {
             setDownloadStage('Transfiriendo archivos del sistema y componentes...');
           } else {
-            setDownloadStage('Comprobando firma e integridad SHA-256...');
+            setDownloadStage('Verificando integridad del paquete...');
           }
         }
       });
@@ -114,7 +115,7 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
             if (next >= 30 && next < 65) {
               setDownloadStage('Descargando paquete de actualización APK...');
             } else if (next >= 65 && next < 88) {
-              setDownloadStage('Verificando integridad del archivo y firma...');
+              setDownloadStage('Verificando integridad del archivo...');
             } else if (next >= 88) {
               setDownloadStage('Preparando instalador de Android...');
             }
@@ -125,8 +126,16 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
       }, 350);
 
       if (updateInfo?.downloadUrl) {
-        await downloadAndInstallApk(updateInfo.downloadUrl);
+        const res = await downloadAndInstallApk(updateInfo.downloadUrl);
         clearInterval(progressTimer);
+
+        if (res.needsPermission) {
+          setIsApplying(false);
+          setDownloadPercent(0);
+          setInstallError(res.message || "Activa 'Permitir desde esta fuente' en Ajustes y vuelve a tocar 'Actualizar Ahora'.");
+          return;
+        }
+
         setDownloadPercent(100);
         setIsComplete(true);
         setDownloadStage('¡Descarga completada! Abriendo instalador de Android...');
@@ -136,9 +145,11 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
         return;
       }
       await updateService.applyUpdate();
-    } catch {
+    } catch (err: any) {
       clearInterval(progressTimer);
-      window.location.reload();
+      setIsApplying(false);
+      setDownloadPercent(0);
+      setInstallError(err?.message || 'No se pudo completar la instalación automática. Usa la descarga en navegador.');
     } finally {
       if (listenerHandle && typeof listenerHandle.remove === 'function') {
         listenerHandle.remove();
@@ -146,9 +157,23 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
     }
   };
 
+  const handleOpenExternalDownload = async () => {
+    if (!updateInfo?.downloadUrl) return;
+    try {
+      await openApkInBrowser(updateInfo.downloadUrl);
+      setInstallError('Descarga iniciada en el navegador. Abre el APK descargado para instalar.');
+    } catch (err: any) {
+      setInstallError(err?.message || 'No se pudo abrir la descarga externa.');
+    }
+  };
+
   const handleDismiss = () => {
     if (!viewNotesOnly && updateInfo?.latestVersion) {
-      updateService.dismissUpdate(updateInfo.latestVersion);
+      updateService.dismissUpdate(
+        updateInfo.latestVersion,
+        updateInfo.buildNumber,
+        updateInfo.publishedAtMs
+      );
     }
     onClose();
   };
@@ -267,52 +292,73 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
           </div>
         )}
 
+        {/* Mensaje de error o permiso pendiente */}
+        {installError && !isApplying && (
+          <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs leading-relaxed mb-4 flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>{installError}</span>
+          </div>
+        )}
+
         {/* Botones de acción */}
-        <div className="flex items-center gap-2.5 pt-1">
-          {viewNotesOnly ? (
+        <div className="flex flex-col gap-2 pt-1">
+          <div className="flex items-center gap-2.5">
+            {viewNotesOnly ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full min-h-[44px] py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              >
+                <span>Entendido</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDismiss}
+                  disabled={isApplying}
+                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors disabled:opacity-50"
+                >
+                  Más tarde
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyUpdate}
+                  disabled={isApplying}
+                  className="flex-1 min-h-[44px] py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75"
+                >
+                  {isApplying ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                      <span>{isComplete ? 'Instalando...' : 'Descargando...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3.5 h-3.5 text-white" />
+                      <span>Actualizar Ahora</span>
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+
+          {!viewNotesOnly && updateInfo?.downloadUrl && !isApplying && (
             <button
               type="button"
-              onClick={onClose}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              onClick={handleOpenExternalDownload}
+              className="w-full min-h-[44px] py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2"
             >
-              <span>Entendido</span>
+              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Descargar APK en navegador</span>
             </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleDismiss}
-                disabled={isApplying}
-                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors disabled:opacity-50"
-              >
-                Más tarde
-              </button>
-              <button
-                type="button"
-                onClick={handleApplyUpdate}
-                disabled={isApplying}
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75"
-              >
-                {isApplying ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                    <span>{isComplete ? 'Instalando...' : 'Descargando...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-3.5 h-3.5 text-white" />
-                    <span>Actualizar Ahora</span>
-                  </>
-                )}
-              </button>
-            </>
           )}
         </div>
 
         <p className="text-[10px] text-slate-500 text-center mt-3">
           {viewNotesOnly
             ? 'Cifrado permanente AES-GCM 256 bits activo.'
-            : 'La actualización se aplica al instante sin cerrar tu sesión.'}
+            : 'Tus archivos y configuraciones permanecen protegidos durante la actualización.'}
         </p>
       </div>
     </div>

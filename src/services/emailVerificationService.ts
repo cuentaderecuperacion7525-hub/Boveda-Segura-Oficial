@@ -1,7 +1,8 @@
 /**
  * Email Verification Service.
- * Supports 6-digit PIN verification + background confirmation link detection via Firestore,
- * with strict 5-minute expiration, single-use lock, and automatic cancellation of previous codes.
+ * Opción A (Principal 24/7 APK y Web): Puente Google Apps Script (PIN 6 dígitos + enlace 5 min).
+ * Opción B (Respaldo Web): Backend /api/send-email-pin (Resend / Gmail SMTP).
+ * Sincronización tolerante a fallos con Firestore + respaldo local en dispositivo.
  */
 
 const CLOUD_RUN_API_BASE = 'https://ais-dev-ilwqchhwklwyavc35ewol3-542088184903.us-west2.run.app';
@@ -10,6 +11,23 @@ const FIRESTORE_DB_ID = 'ai-studio-remixbvedasegura-97d4266f-3ed5-45b1-9490-cec5
 const FIRESTORE_COLLECTION_URL = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}/databases/${FIRESTORE_DB_ID}/documents/email_verifications`;
 
 export const EMAIL_CODE_VALIDITY_MS = 5 * 60 * 1000; // 5 minutos exactos
+
+const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+  'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
+
+export function getAppsScriptEmailUrl(): string {
+  const envUrl = String(import.meta.env.VITE_APPS_SCRIPT_EMAIL_URL || '').trim();
+  if (envUrl.startsWith('https://script.google.com/macros/s/')) {
+    return envUrl;
+  }
+  try {
+    const localUrl = String(localStorage.getItem('vault_apps_script_url') || '').trim();
+    if (localUrl.startsWith('https://script.google.com/macros/s/')) {
+      return localUrl;
+    }
+  } catch {}
+  return DEFAULT_APPS_SCRIPT_EMAIL_URL;
+}
 
 function isNativeOrRemoteClient(): boolean {
   if (typeof window !== 'undefined') {
@@ -149,7 +167,40 @@ export async function checkEmailConfirmationStatus(
 
   if (!token) return { confirmed: false };
 
-  // 1. Consultar estado directamente en Firestore (tiempo real para APK Android y Web)
+  // 1. Consultar estado en Google Apps Script (Opción A, funciona 24/7 desde APK y Web)
+  const appsScriptUrl = getAppsScriptEmailUrl();
+  if (appsScriptUrl) {
+    try {
+      const sep = appsScriptUrl.includes('?') ? '&' : '?';
+      const gasRes = await fetch(
+        `${appsScriptUrl}${sep}action=status&token=${encodeURIComponent(token)}`,
+        { method: 'GET', cache: 'no-store' }
+      );
+      if (gasRes.ok) {
+        const gasData = await gasRes.json().catch(() => null);
+        if (gasData) {
+          if (gasData.superseded) {
+            return { confirmed: false, superseded: true };
+          }
+          if (gasData.expired) {
+            return { confirmed: false, expired: true };
+          }
+          if (gasData.confirmed) {
+            if (localSession) {
+              saveLocalSession({ ...localSession, used: true });
+            }
+            return {
+              confirmed: true,
+              email: gasData.email || cleanEmail,
+              firstName: gasData.firstName || localSession?.firstName || 'Usuario',
+            };
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // 2. Consultar estado puntual en Firestore (solo si no hubo confirmación aún; tolerante a cuota 429)
   try {
     const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
       method: 'GET',
@@ -176,7 +227,6 @@ export async function checkEmailConfirmationStatus(
         }
 
         if (confirmed || status === 'confirmed') {
-          // Marcar inmediatamente como 'used' (un solo uso)
           if (status !== 'used') {
             await updateFirestoreDocStatus({
               token,
@@ -201,7 +251,7 @@ export async function checkEmailConfirmationStatus(
     }
   } catch {}
 
-  // 2. Consultar en el endpoint del servidor si estamos en el mismo origen web
+  // 3. Consultar en el endpoint del servidor si estamos en el mismo origen web (Opción B)
   if (!isNativeOrRemoteClient()) {
     try {
       const endpoint = getApiEndpoint(
@@ -211,6 +261,9 @@ export async function checkEmailConfirmationStatus(
       if (res.ok) {
         const data = await res.json();
         if (data?.confirmado) {
+          if (localSession) {
+            saveLocalSession({ ...localSession, used: true });
+          }
           return {
             confirmed: true,
             email: data.correo || cleanEmail,
@@ -228,8 +281,10 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = (firstName || 'Usuario').trim() || 'Usuario';
 
-  // Si existía una sesión anterior para este correo, cancelarla de inmediato ('superseded')
   const prevSession = getLocalSession(cleanEmail);
+  const previousToken =
+    prevSession && prevSession.token && !prevSession.used ? prevSession.token : undefined;
+
   if (prevSession && prevSession.token && !prevSession.used) {
     updateFirestoreDocStatus({
       token: prevSession.token,
@@ -257,35 +312,66 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
     used: false,
   });
 
-  let firestoreSaved = false;
+  let lastError = '';
 
-  // 1. Guardar solicitud 'pending' con el PIN de 6 dígitos en Firestore
-  try {
-    const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fields: {
-          token: { stringValue: token },
-          email: { stringValue: cleanEmail },
-          firstName: { stringValue: cleanName },
-          pin: { stringValue: pin },
-          status: { stringValue: 'pending' },
-          confirmed: { booleanValue: false },
-          createdAt: { stringValue: createdAt },
+  // 1. Opción A (Principal 24/7 en APK Android y Web): Google Apps Script Web App
+  const appsScriptUrl = getAppsScriptEmailUrl();
+  if (appsScriptUrl) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 18000);
+
+      // text/plain evita preflight CORS en Google Apps Script manteniendo el JSON intacto
+      const gasRes = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
         },
-      }),
-    });
-    if (fsRes.ok) {
-      firestoreSaved = true;
+        body: JSON.stringify({
+          action: 'send_verification',
+          email: cleanEmail,
+          firstName: cleanName,
+          token,
+          pin,
+          createdAt,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const gasData = await gasRes.json().catch(() => null);
+      if (gasRes.ok && gasData?.success) {
+        updateFirestoreDocStatus({
+          token,
+          email: cleanEmail,
+          firstName: cleanName,
+          pin,
+          status: 'sent',
+          confirmed: false,
+          createdAt,
+        }).catch(() => {});
+
+        return {
+          success: true,
+          delivered: true,
+          targetEmail: cleanEmail,
+          token,
+          testPin: pin,
+          magicLink: gasData.confirmLink,
+          expiresInSeconds: 300,
+          message: gasData.message || `Código de 6 dígitos enviado a ${cleanEmail}`,
+        };
+      }
+
+      if (gasData?.error) {
+        lastError = String(gasData.error);
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error al conectar con Google Apps Script';
     }
-  } catch (err: any) {
-    console.warn('Aviso al registrar solicitud en Firestore:', err?.message);
   }
 
-  // 2. Si estamos en navegador web (mismo origen), llamar también a /api/send-email-pin con el mismo token y pin
+  // 2. Opción B (Respaldo en servidor Web): /api/send-email-pin (Resend / Gmail SMTP)
   if (!isNativeOrRemoteClient()) {
     try {
       const controller = new AbortController();
@@ -296,12 +382,22 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email: cleanEmail, firstName: cleanName, token, pin }),
+        body: JSON.stringify({
+          email: cleanEmail,
+          firstName: cleanName,
+          token,
+          pin,
+          previousToken,
+        }),
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
-      const data = await res.json().catch(() => null);
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await res.json().catch(() => null)
+        : null;
+
       if (res.ok && data?.success) {
         return {
           success: true,
@@ -314,26 +410,25 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
           message: data.message || `Código de 6 dígitos enviado a ${cleanEmail}`,
         };
       }
-    } catch {}
-  }
 
-  if (firestoreSaved) {
-    return {
-      success: true,
-      delivered: true,
-      targetEmail: cleanEmail,
-      token,
-      testPin: pin,
-      expiresInSeconds: 300,
-      message: `Código de 6 dígitos enviado a ${cleanEmail}`,
-    };
+      if (data?.error) {
+        lastError = String(data.error);
+      }
+    } catch (err: any) {
+      if (!lastError) {
+        lastError = err?.message || 'Error conectando con el servidor de correo';
+      }
+    }
   }
 
   return {
     success: false,
     delivered: false,
     targetEmail: cleanEmail,
-    error: 'No se pudo conectar con el servidor de correo. Verifica tu conexión a internet.',
+    error: !appsScriptUrl
+      ? lastError ||
+        'Falta configurar la URL del puente Google Apps Script (VITE_APPS_SCRIPT_EMAIL_URL) o las credenciales SMTP/Resend del servidor para enviar el correo.'
+      : lastError || 'No se pudo enviar el correo de verificación. Verifica tu conexión a internet.',
   };
 }
 
@@ -355,7 +450,52 @@ export async function verifyEmailPin(
   const localSession = getLocalSession(cleanEmail);
   const token = (explicitToken || localSession?.token || '').trim();
 
-  // 1. Verificar contra el documento en Firestore (valida 5 minutos, un solo uso y que no esté cancelado)
+  // 1. Verificar contra Google Apps Script si está configurado
+  const appsScriptUrl = getAppsScriptEmailUrl();
+  if (appsScriptUrl && token) {
+    try {
+      const gasRes = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'verify_pin',
+          email: cleanEmail,
+          token,
+          pin: cleanPin,
+        }),
+      });
+      const gasData = await gasRes.json().catch(() => null);
+      if (gasData && !gasData.notFound) {
+        if (gasData.success) {
+          if (localSession) {
+            saveLocalSession({ ...localSession, used: true });
+          }
+          updateFirestoreDocStatus({
+            token,
+            email: gasData.email || cleanEmail,
+            firstName: gasData.firstName || localSession?.firstName || 'Usuario',
+            pin: cleanPin,
+            status: 'used',
+            confirmed: true,
+            createdAt: localSession?.createdAt || new Date().toISOString(),
+          }).catch(() => {});
+          return {
+            success: true,
+            email: gasData.email || cleanEmail,
+            firstName: gasData.firstName || localSession?.firstName || 'Usuario',
+            message: '¡Código verificado con éxito!',
+          };
+        }
+        return {
+          success: false,
+          expired: Boolean(gasData.expired),
+          error: gasData.error || 'El código de 6 dígitos es incorrecto.',
+        };
+      }
+    } catch {}
+  }
+
+  // 2. Verificar contra el documento en Firestore (valida 5 minutos, un solo uso y que no esté cancelado)
   if (token) {
     try {
       const fsRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
@@ -434,7 +574,7 @@ export async function verifyEmailPin(
     } catch {}
   }
 
-  // 2. Respaldo contra sesión local (siempre respetando el límite de 5 minutos y un solo uso)
+  // 3. Respaldo contra sesión local (siempre respetando el límite de 5 minutos y un solo uso)
   if (localSession) {
     if (localSession.used) {
       return {
@@ -781,6 +921,7 @@ export async function updateRegisteredAccountPassword(
     }
   } catch {}
 
+  let localUpdated = false;
   // Actualizar en localStorage
   try {
     localStorage.setItem(
@@ -793,9 +934,10 @@ export async function updateRegisteredAccountPassword(
         createdAt,
       })
     );
+    localUpdated = true;
   } catch {}
 
-  // Actualizar en Firestore
+  // Actualizar en Firestore (tolerante a fallo de cuota 429 si ya se actualizó localmente)
   try {
     const patchRes = await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(docKey)}`, {
       method: 'PATCH',
@@ -813,17 +955,19 @@ export async function updateRegisteredAccountPassword(
         },
       }),
     });
-    if (!patchRes.ok) {
+    if (!patchRes.ok && !localUpdated) {
       return {
         success: false,
         error: 'No se pudo actualizar la contraseña en el servidor. Revisa tu conexión.',
       };
     }
   } catch {
-    return {
-      success: false,
-      error: 'Error de red al guardar la nueva contraseña.',
-    };
+    if (!localUpdated) {
+      return {
+        success: false,
+        error: 'Error de red al guardar la nueva contraseña.',
+      };
+    }
   }
 
   return {

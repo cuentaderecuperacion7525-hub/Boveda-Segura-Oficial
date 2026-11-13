@@ -20,19 +20,38 @@ const isProd = process.env.NODE_ENV === 'production';
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// Transporter oficial con la contraseña de aplicación de Gmail (desde variables de entorno o respaldo codificado)
-const DEFAULT_U = Buffer.from('am1tYXJ0aW5lejUxMjFAZ21haWwuY29t', 'base64').toString('utf8');
-const DEFAULT_P = Buffer.from('eHd2c3p5c252c2l5aGx6bQ==', 'base64').toString('utf8');
-const GMAIL_USER = (process.env.GMAIL_USER || DEFAULT_U).trim();
-const GMAIL_PASS = (process.env.GMAIL_PASS || DEFAULT_P).replace(/\s+/g, '').trim();
+// Configuración de envío de correo:
+// Opción A: Google Apps Script Web App URL (APPS_SCRIPT_EMAIL_URL o VITE_APPS_SCRIPT_EMAIL_URL)
+// Opción B: Respaldo servidor vía Resend (RESEND_API_KEY) o Gmail SMTP (GMAIL_USER + GMAIL_PASS)
+const DEFAULT_APPS_SCRIPT_EMAIL_URL =
+  'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
+const APPS_SCRIPT_EMAIL_URL = (
+  process.env.APPS_SCRIPT_EMAIL_URL ||
+  process.env.VITE_APPS_SCRIPT_EMAIL_URL ||
+  DEFAULT_APPS_SCRIPT_EMAIL_URL
+).trim();
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
+const RAW_GMAIL_USER = (process.env.GMAIL_USER || '').trim();
+const RAW_GMAIL_PASS = (process.env.GMAIL_PASS || '').replace(/\s+/g, '').trim();
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_PASS,
-  },
-});
+const isPlaceholder = (val: string, prefix: string) =>
+  !val || val.startsWith(prefix) || val === 'TU_CORREO_GMAIL' || val === 'TU_CONTRASENA_DE_APLICACION';
+
+const GMAIL_USER = isPlaceholder(RAW_GMAIL_USER, 'MY_') ? '' : RAW_GMAIL_USER;
+const GMAIL_PASS = isPlaceholder(RAW_GMAIL_PASS, 'MY_') ? '' : RAW_GMAIL_PASS;
+const VALID_RESEND_KEY = isPlaceholder(RESEND_API_KEY, 'MY_') ? '' : RESEND_API_KEY;
+
+const transporter =
+  GMAIL_USER && GMAIL_PASS
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: GMAIL_USER,
+          pass: GMAIL_PASS,
+        },
+      })
+    : null;
+
 
 // Base de datos Firestore (accesible públicamente desde APK móvil, navegador y servidor sin bloqueo de cookies)
 const FIRESTORE_PROJECT_ID = 'studio-7313343442-ab21c';
@@ -236,22 +255,8 @@ async function createDirectConfirmationUrl(token: string, email: string, firstNa
 </body>
 </html>`;
 
-  try {
-    const res = await fetch('https://bytebin.lucko.me/post', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-      },
-      body: htmlContent,
-    });
-    if (res.ok) {
-      const data: any = await res.json();
-      if (data?.key) {
-        return `https://bytebin.lucko.me/${data.key}#token=${safeToken}`;
-      }
-    }
-  } catch (err) {
-    console.warn('Fallback URL para confirmación:', err);
+  if (APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/')) {
+    return `${APPS_SCRIPT_EMAIL_URL}?action=confirm&token=${encodeURIComponent(safeToken)}`;
   }
 
   return `https://htmlpreview.github.io/?https://github.com/cuentaderecuperacion7525-hub/Mi-B-veda.-/blob/main/public/confirmar.html#token=${safeToken}`;
@@ -289,86 +294,52 @@ async function saveVerificationToFirestore(params: {
   }
 }
 
-// Cancela todos los enlaces/códigos anteriores del mismo correo cuando se envía uno nuevo
-async function cancelarSolicitudesAnterioresFirestore(email: string, currentToken: string) {
+// Cancela únicamente la solicitud anterior conocida (1 sola escritura puntual, 0 escaneos de colección)
+async function cancelarSolicitudAnterior(email: string, currentToken: string, previousToken?: string) {
   const cleanEmail = email.trim().toLowerCase();
-  try {
-    const res = await fetch(`${FIRESTORE_BASE_DOCS_URL}:runQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: 'email_verifications' }],
-        },
-      }),
-    });
-    if (!res.ok) return;
-    const rows: any[] = await res.json();
-    if (!Array.isArray(rows)) return;
+  const prevMem = confirmacionesPorCorreo.get(cleanEmail);
+  const targetPrevToken = previousToken || (prevMem && prevMem.token !== currentToken ? prevMem.token : '');
+  if (!targetPrevToken || targetPrevToken === currentToken) return;
 
-    for (const row of rows) {
-      const f = row?.document?.fields;
-      if (!f) continue;
-      const tk = f.token?.stringValue || '';
-      const em = (f.email?.stringValue || '').trim().toLowerCase();
-      const st = f.status?.stringValue || '';
-      const fn = f.firstName?.stringValue || 'Usuario';
-      const ca = f.createdAt?.stringValue || new Date().toISOString();
-      const pn = f.pin?.stringValue || undefined;
-
-      if (
-        tk &&
-        tk !== currentToken &&
-        tk !== 'pagina_confirmacion' &&
-        !tk.startsWith('cuenta_') &&
-        st !== 'registered_account' &&
-        em === cleanEmail
-      ) {
-        if (st === 'pending' || st === 'sending' || st === 'sent') {
-          await saveVerificationToFirestore({
-            token: tk,
-            email: cleanEmail,
-            firstName: fn,
-            pin: pn,
-            status: 'superseded',
-            confirmed: false,
-            createdAt: ca,
-          });
-        }
-      }
-    }
-  } catch {}
+  await saveVerificationToFirestore({
+    token: targetPrevToken,
+    email: cleanEmail,
+    firstName: prevMem?.nombre || 'Usuario',
+    pin: prevMem?.pin,
+    status: 'superseded',
+    confirmed: false,
+    createdAt: prevMem ? new Date(prevMem.creadoEn).toISOString() : new Date().toISOString(),
+  });
 }
 
-// Función central que envía el correo con el PIN de 6 dígitos como protagonista y el enlace discreto en 9px abajo
+// Función central que envía el correo con el PIN de 6 dígitos y el enlace de confirmación
+// Intenta Opción A (Google Apps Script) y respalda con Opción B (Resend / Gmail SMTP)
 async function enviarCorreoConfirmacion(
   correo: string,
   nombre: string,
   token: string,
   pin: string,
-  createdAtIso?: string
+  createdAtIso?: string,
+  previousToken?: string
 ): Promise<{
   ok: boolean;
   confirmLink: string;
   pin: string;
+  provider?: string;
   error?: string;
 }> {
   const cleanCorreo = correo.trim().toLowerCase();
   const cleanNombre = nombre.trim() || 'Usuario';
   const cleanPin = pin.trim() || generarPin6Digitos();
+  const createdAtStr = createdAtIso || new Date().toISOString();
 
-  // Primero cancelar cualquier solicitud anterior de este mismo correo
-  await cancelarSolicitudesAnterioresFirestore(cleanCorreo, token);
+  await cancelarSolicitudAnterior(cleanCorreo, token, previousToken);
 
-  const confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre);
-
-  const info = await transporter.sendMail({
-    from: `"Mi Bóveda" <${GMAIL_USER}>`,
-    replyTo: '"Mi Bóveda (No responder)" <no-responder@miboveda.app>',
-    to: cleanCorreo, // <- Se envía SIEMPRE al correo que el usuario escribió en su registro
-    subject: `${cleanPin} es tu código de acceso a Mi Bóveda`,
-    text: `Hola ${cleanNombre},\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n${cleanPin}\n\nEste código es de un solo uso y vence en 5 minutos.\n\n¿Prefieres confirmar directamente con enlace? Abre: ${confirmLink}\n\nSaludos,\nMi Bóveda`,
-    html: `
+  let confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre);
+  const subject = `${cleanPin} es tu código de acceso a Mi Bóveda`;
+  const buildText = (link: string) =>
+    `Hola ${cleanNombre},\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n${cleanPin}\n\nEste código es de un solo uso y vence en 5 minutos.\n\n¿Prefieres confirmar directamente con enlace? Abre: ${link}\n\nSaludos,\nMi Bóveda`;
+  const buildHtml = (link: string) => `
       <div style="font-family: Arial, sans-serif; max-width: 440px; margin: auto; padding: 28px 24px; border: 1px solid #e5e7eb; border-radius: 14px; background: #ffffff; color: #1f2937;">
         <h2 style="margin: 0 0 12px 0; color: #111827; font-size: 20px;">Mi Bóveda</h2>
         <p style="margin: 0 0 14px 0; color: #374151; font-size: 15px; line-height: 1.5;">
@@ -386,24 +357,109 @@ async function enviarCorreoConfirmacion(
         <div style="border-top: 1px solid #f3f4f6; padding-top: 12px; margin-top: 14px; text-align: center;">
           <span style="font-size: 9px; color: #9ca3af; line-height: 1.3;">
             ¿Prefieres confirmar sin escribir el código?
-            <a href="${confirmLink}" style="color: #6b7280; text-decoration: underline; font-size: 9px;">
+            <a href="${link}" style="color: #6b7280; text-decoration: underline; font-size: 9px;">
               Confirmar cuenta tocando este enlace
             </a>
           </span>
         </div>
-      </div>`,
-  });
+      </div>`;
 
-  if (info.rejected && info.rejected.length > 0) {
+  let delivered = false;
+  let provider = '';
+  let lastError = '';
+
+  // Opción A: Puente Google Apps Script
+  if (APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/')) {
+    try {
+      const gasRes = await fetch(APPS_SCRIPT_EMAIL_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'send_verification',
+          email: cleanCorreo,
+          firstName: cleanNombre,
+          token,
+          pin: cleanPin,
+          createdAt: createdAtStr,
+        }),
+      });
+      const gasData: any = await gasRes.json().catch(() => null);
+      if (gasRes.ok && gasData?.success) {
+        delivered = true;
+        provider = 'apps_script';
+        if (gasData.confirmLink) {
+          confirmLink = gasData.confirmLink;
+        }
+      } else {
+        lastError = gasData?.error || `Apps Script HTTP ${gasRes.status}`;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error conectando con Apps Script';
+    }
+  }
+
+  // Opción B1: Resend API (si está configurado en entorno)
+  if (!delivered && VALID_RESEND_KEY) {
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${VALID_RESEND_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Mi Bóveda <onboarding@resend.dev>',
+          to: [cleanCorreo],
+          subject,
+          text: buildText(confirmLink),
+          html: buildHtml(confirmLink),
+        }),
+      });
+      const resendData: any = await resendRes.json().catch(() => null);
+      if (resendRes.ok && resendData?.id) {
+        delivered = true;
+        provider = 'resend';
+      } else {
+        lastError = resendData?.message || `Resend HTTP ${resendRes.status}`;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error conectando con Resend';
+    }
+  }
+
+  // Opción B2: Gmail SMTP vía nodemailer (si GMAIL_USER y GMAIL_PASS están configurados en entorno)
+  if (!delivered && transporter) {
+    try {
+      const info = await transporter.sendMail({
+        from: `"Mi Bóveda" <${GMAIL_USER}>`,
+        replyTo: '"Mi Bóveda (No responder)" <no-responder@miboveda.app>',
+        to: cleanCorreo,
+        subject,
+        text: buildText(confirmLink),
+        html: buildHtml(confirmLink),
+      });
+      if (info.rejected && info.rejected.length > 0) {
+        lastError = 'El servidor de destino rechazó el correo';
+      } else {
+        delivered = true;
+        provider = 'gmail_smtp';
+        console.log(`[SMTP] Código ${cleanPin} + enlace enviado a: ${cleanCorreo} | token: ${token} | messageId: ${info.messageId}`);
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Credenciales SMTP rechazadas por Gmail';
+    }
+  }
+
+  if (!delivered) {
     return {
       ok: false,
       confirmLink,
       pin: cleanPin,
-      error: 'El servidor de destino rechazó el correo',
+      error:
+        lastError ||
+        'El envío de correo no está configurado en el servidor (falta URL de Apps Script o credenciales SMTP/Resend válidas).',
     };
   }
-
-  console.log(`[SMTP] Código ${cleanPin} + enlace enviado a: ${cleanCorreo} | token: ${token} | messageId: ${info.messageId}`);
 
   const creadoMs = createdAtIso ? Date.parse(createdAtIso) || Date.now() : Date.now();
   const vence = creadoMs + VIGENCIA_MS;
@@ -422,160 +478,16 @@ async function enviarCorreoConfirmacion(
   });
   confirmacionesPorToken.set(token, cleanCorreo);
 
-  return { ok: true, confirmLink, pin: cleanPin };
+  return { ok: true, confirmLink, pin: cleanPin, provider };
 }
 
-// Watcher en tiempo real de Firestore (:runQuery) para atender solicitudes creadas desde el APK de Android
-let isPollingFirestore = false;
-async function pollFirestorePendingVerifications() {
-  if (isPollingFirestore) return;
-  isPollingFirestore = true;
-  try {
-    const res = await fetch(`${FIRESTORE_BASE_DOCS_URL}:runQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        structuredQuery: {
-          from: [{ collectionId: 'email_verifications' }],
-        },
-      }),
-    });
-    if (!res.ok) return;
-    const rows: any[] = await res.json();
-    if (!Array.isArray(rows)) return;
-
-    for (const row of rows) {
-      const doc = row?.document;
-      const fields = doc?.fields;
-      if (!fields) continue;
-
-      const token = fields.token?.stringValue || '';
-      const email = (fields.email?.stringValue || '').trim().toLowerCase();
-      const firstName = (fields.firstName?.stringValue || 'Usuario').trim();
-      const pinFromDoc = (fields.pin?.stringValue || '').trim();
-      const status = fields.status?.stringValue || '';
-      const confirmed = Boolean(fields.confirmed?.booleanValue);
-      const createdAt = fields.createdAt?.stringValue || new Date().toISOString();
-
-      if (!token || token === 'pagina_confirmacion' || token.startsWith('cuenta_') || status === 'registered_account') continue;
-
-      const createdMs = Date.parse(createdAt) || Date.now();
-      const ageMs = Date.now() - createdMs;
-      const isExpired = ageMs > VIGENCIA_MS;
-      const isReadyForCleanup = ageMs > VIGENCIA_MS * 2; // Más de 10 minutos: eliminar documento temporal de Firestore
-
-      // Limpieza automática de códigos temporales vencidos o ya utilizados después de 10 minutos
-      // (NUNCA toca documentos 'cuenta_*' ni 'registered_account')
-      if (isReadyForCleanup && !token.startsWith('cuenta_') && status !== 'registered_account') {
-        try {
-          await fetch(`${FIRESTORE_COLLECTION_URL}/${encodeURIComponent(token)}`, {
-            method: 'DELETE',
-          });
-          tokensProcesados.delete(token);
-          confirmacionesPorToken.delete(token);
-          const memReg = confirmacionesPorCorreo.get(email);
-          if (memReg && memReg.token === token) {
-            confirmacionesPorCorreo.delete(email);
-          }
-        } catch {}
-        continue;
-      }
-
-      // Si ya pasaron más de 5 minutos y seguía en 'sent' o 'pending', marcarlo como 'expired'
-      if (isExpired && (status === 'pending' || status === 'sending' || status === 'sent')) {
-        await saveVerificationToFirestore({
-          token,
-          email,
-          firstName,
-          pin: pinFromDoc || undefined,
-          status: 'expired',
-          confirmed: false,
-          createdAt,
-        });
-        continue;
-      }
-
-      // Si el usuario ya confirmó desde su navegador dentro de los 5 minutos, sincronizar en memoria
-      if ((confirmed || status === 'confirmed') && !isExpired) {
-        const reg = confirmacionesPorCorreo.get(email);
-        if (reg && reg.token === token) {
-          reg.confirmado = true;
-        } else if (email) {
-          confirmacionesPorCorreo.set(email, {
-            correo: email,
-            nombre: firstName,
-            token,
-            pin: pinFromDoc || '000000',
-            confirmLink: '',
-            confirmado: true,
-            usado: false,
-            creadoEn: createdMs,
-            vence: createdMs + VIGENCIA_MS,
-            ultimoEnvio: Date.now(),
-          });
-          confirmacionesPorToken.set(token, email);
-        }
-        continue;
-      }
-
-      // Si el APK o cliente creó una solicitud pendiente ('pending'), enviar el correo inmediatamente
-      if (status === 'pending' && !tokensProcesados.has(token) && correoValido(email) && !isExpired) {
-        tokensProcesados.add(token);
-        const finalPin = pinFromDoc && pinFromDoc.length === 6 ? pinFromDoc : generarPin6Digitos();
-
-        try {
-          await saveVerificationToFirestore({
-            token,
-            email,
-            firstName,
-            pin: finalPin,
-            status: 'sending',
-            confirmed: false,
-            createdAt,
-          });
-
-          const result = await enviarCorreoConfirmacion(email, firstName, token, finalPin, createdAt);
-
-          await saveVerificationToFirestore({
-            token,
-            email,
-            firstName,
-            pin: finalPin,
-            status: result.ok ? 'sent' : 'error',
-            confirmed: false,
-            createdAt,
-          });
-        } catch (err) {
-          console.error('[Firestore Watcher] Error enviando correo a', email, err);
-          await saveVerificationToFirestore({
-            token,
-            email,
-            firstName,
-            pin: finalPin,
-            status: 'error',
-            confirmed: false,
-            createdAt,
-          });
-        }
-      }
-    }
-  } catch {
-    // Ignorar errores de red transitorios
-  } finally {
-    isPollingFirestore = false;
-  }
-}
-
-// Iniciar watcher cada 1.5 segundos y ejecutar al arrancar
-setInterval(pollFirestorePendingVerifications, 1500);
-setTimeout(pollFirestorePendingVerifications, 200);
-
-// 1) Endpoint HTTP directo para enviar el correo con PIN de 6 dígitos + enlace de 9px
+// 1) Endpoint HTTP directo para enviar el correo con PIN de 6 dígitos + enlace
 const handleEnviarEnlace = async (req: Request, res: Response) => {
   const correo = String(req.body.correo || req.body.email || '').trim().toLowerCase();
   const nombre = String(req.body.nombre || req.body.firstName || '').trim() || 'Usuario';
   const clientToken = String(req.body.token || '').trim();
   const clientPin = String(req.body.pin || '').trim();
+  const previousToken = String(req.body.previousToken || '').trim();
 
   if (!correoValido(correo)) {
     return res.status(400).json({ ok: false, success: false, error: 'Correo electrónico no válido' });
@@ -584,7 +496,6 @@ const handleEnviarEnlace = async (req: Request, res: Response) => {
   const token = clientToken || crypto.randomBytes(16).toString('hex');
   const pin = clientPin && clientPin.length === 6 ? clientPin : generarPin6Digitos();
 
-  // Si el watcher de Firestore ya procesó este mismo token, devolver éxito sin enviar doble correo
   if (tokensProcesados.has(token)) {
     const existing = confirmacionesPorCorreo.get(correo);
     return res.json({
@@ -594,6 +505,7 @@ const handleEnviarEnlace = async (req: Request, res: Response) => {
       targetEmail: correo,
       token,
       testPin: existing?.pin || pin,
+      magicLink: existing?.confirmLink,
       expiresInSeconds: 300,
       message: 'Te enviamos tu código de 6 dígitos por correo.',
     });
@@ -613,18 +525,9 @@ const handleEnviarEnlace = async (req: Request, res: Response) => {
   const createdAt = new Date().toISOString();
 
   try {
-    await saveVerificationToFirestore({
-      token,
-      email: correo,
-      firstName: nombre,
-      pin,
-      status: 'sending',
-      confirmed: false,
-      createdAt,
-    });
-
-    const result = await enviarCorreoConfirmacion(correo, nombre, token, pin, createdAt);
+    const result = await enviarCorreoConfirmacion(correo, nombre, token, pin, createdAt, previousToken);
     if (!result.ok) {
+      tokensProcesados.delete(token);
       return res.status(502).json({ ok: false, success: false, error: result.error || 'Error enviando correo' });
     }
 
@@ -642,6 +545,7 @@ const handleEnviarEnlace = async (req: Request, res: Response) => {
       ok: true,
       success: true,
       delivered: true,
+      provider: result.provider,
       targetEmail: correo,
       token,
       testPin: result.pin,
@@ -650,6 +554,7 @@ const handleEnviarEnlace = async (req: Request, res: Response) => {
       message: 'Te enviamos tu código de 6 dígitos por correo.',
     });
   } catch (err: any) {
+    tokensProcesados.delete(token);
     console.error('ERROR al enviar correo a', correo, err);
     return res.status(500).json({
       ok: false,

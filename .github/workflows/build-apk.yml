@@ -37,6 +37,14 @@ jobs:
       - name: Instalar dependencias de Node
         run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
+      - name: Incrementar versión automática y generar novedades
+        id: bump
+        run: |
+          node scripts/generar-novedades.cjs
+          node scripts/bump-release-version.cjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generar construcción web y sincronizar Capacitor
         run: |
           npm run build
@@ -55,8 +63,8 @@ jobs:
             git config user.name "github-actions"
             git config user.email "actions@github.com"
             git add -f android/boveda.keystore
-            git commit -m "Agregar keystore fija"
-            git push
+            git commit -m "Agregar keystore fija [skip ci]" || true
+            git push || true
           fi
           echo "===== HUELLAS PARA FIREBASE ====="
           keytool -list -v -keystore android/boveda.keystore -alias boveda -storepass "${{ secrets.KEYSTORE_PASSWORD }}" | grep -E "SHA1|SHA256"
@@ -70,6 +78,14 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: boveda
           KEY_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Guardar archivos de versión sincronizados
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add public/version.json public/novedades.json src/version.ts android/app/build.gradle
+          git commit -m "chore: versión ${{ steps.bump.outputs.tag }} [skip ci]" || true
+          git push || true
 
       - name: Preparar archivos para Release
         run: |
@@ -85,10 +101,10 @@ jobs:
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.16
-          name: Versión 1.0.16 - Compilador Unificado Permanente
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: Versión ${{ steps.bump.outputs.version }} - Mi Bóveda
           body: |
-            Compilado APK unificado firmado con la clave permanente para actualización transparente en 1 clic.
+            Actualización automática v${{ steps.bump.outputs.version }} (compilación ${{ steps.bump.outputs.build_number }}) firmada con la clave permanente para actualizar en 1 clic sin perder datos.
           files: |
             Boveda-Calculadora.apk
             version.json

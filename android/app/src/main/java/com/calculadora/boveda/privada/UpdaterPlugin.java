@@ -46,10 +46,34 @@ public class UpdaterPlugin extends Plugin {
             JSObject ret = new JSObject();
             ret.put("versionCode", versionCode);
             ret.put("versionName", pInfo.versionName);
+            ret.put("lastUpdateTime", pInfo.lastUpdateTime);
             call.resolve(ret);
         } catch (Exception e) {
             Log.e(TAG, "Error al obtener versión instalada", e);
             call.reject("Error al obtener versión: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Abre una URL de descarga externa (GitHub APK) en el navegador predeterminado de Android como respaldo.
+     */
+    @PluginMethod
+    public void openExternalDownload(PluginCall call) {
+        final String targetUrl = call.getString("url");
+        if (targetUrl == null || targetUrl.trim().isEmpty()) {
+            call.reject("URL no proporcionada");
+            return;
+        }
+        try {
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl.trim()));
+            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(browserIntent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "No se pudo abrir navegador para descarga", e);
+            call.reject("No se pudo abrir el navegador: " + e.getMessage());
         }
     }
 
@@ -64,9 +88,33 @@ public class UpdaterPlugin extends Plugin {
             return;
         }
 
+        // Solicitar permiso de fuentes desconocidas ANTES de descargar para no interrumpir al instalador
+        Context ctx = getContext();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !ctx.getPackageManager().canRequestPackageInstalls()) {
+            try {
+                Intent manageIntent = new Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + ctx.getPackageName())
+                );
+                manageIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(manageIntent);
+            } catch (Exception ex) {
+                Log.w(TAG, "No se pudo abrir configuración de orígenes desconocidos", ex);
+            }
+            JSObject permRes = new JSObject();
+            permRes.put("success", false);
+            permRes.put("needsPermission", true);
+            permRes.put("message", "Activa 'Permitir desde esta fuente' en Ajustes y vuelve a tocar 'Instalar actualización'.");
+            call.resolve(permRes);
+            return;
+        }
+
         new Thread(new Runnable() {
             @Override
             public void run() {
+                HttpURLConnection connection = null;
+                InputStream in = null;
+                FileOutputStream out = null;
                 try {
                     Context context = getContext();
                     File cacheDir = context.getExternalCacheDir();
@@ -79,17 +127,17 @@ public class UpdaterPlugin extends Plugin {
                         apkFile.delete();
                     }
 
-                    // Descargar siguiendo redirecciones (GitHub releases redirige 302 a CDN)
-                    String currentUrl = apkUrl;
-                    HttpURLConnection connection = null;
+                    // Descargar siguiendo redirecciones manualmente (GitHub releases -> CDN)
+                    String currentUrl = apkUrl.trim();
                     int redirects = 0;
-                    while (redirects < 6) {
+                    while (redirects < 8) {
                         URL url = new URL(currentUrl);
                         connection = (HttpURLConnection) url.openConnection();
-                        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)");
+                        connection.setRequestProperty("User-Agent", "BovedaSegura-Updater/1.0");
+                        connection.setRequestProperty("Accept", "application/vnd.android.package-archive, application/octet-stream, */*");
                         connection.setConnectTimeout(25000);
-                        connection.setReadTimeout(45000);
-                        connection.setInstanceFollowRedirects(true);
+                        connection.setReadTimeout(60000);
+                        connection.setInstanceFollowRedirects(false);
                         connection.connect();
 
                         int responseCode = connection.getResponseCode();
@@ -98,8 +146,11 @@ public class UpdaterPlugin extends Plugin {
                             responseCode == HttpURLConnection.HTTP_SEE_OTHER ||
                             responseCode == 307 || responseCode == 308) {
                             String newUrl = connection.getHeaderField("Location");
+                            connection.disconnect();
+                            connection = null;
                             if (newUrl != null && !newUrl.isEmpty()) {
-                                currentUrl = newUrl;
+                                URL nextUrl = new URL(url, newUrl);
+                                currentUrl = nextUrl.toString();
                                 redirects++;
                                 continue;
                             }
@@ -114,9 +165,9 @@ public class UpdaterPlugin extends Plugin {
                     }
 
                     int fileLength = connection.getContentLength();
-                    InputStream in = connection.getInputStream();
-                    FileOutputStream out = new FileOutputStream(apkFile);
-                    byte[] buffer = new byte[8192];
+                    in = connection.getInputStream();
+                    out = new FileOutputStream(apkFile);
+                    byte[] buffer = new byte[16384];
                     int bytesRead;
                     long totalBytes = 0;
                     int lastReportedPercent = -1;
@@ -137,29 +188,15 @@ public class UpdaterPlugin extends Plugin {
                     }
                     out.flush();
                     out.close();
+                    out = null;
                     in.close();
+                    in = null;
+                    connection.disconnect();
+                    connection = null;
 
                     if (!apkFile.exists() || apkFile.length() < 1024) {
                         call.reject("El archivo descargado no es un APK válido");
                         return;
-                    }
-
-                    // Permiso de fuentes desconocidas en Android 8.0+ (Oreo+)
-                    boolean hasUnknownSourcePermission = true;
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        hasUnknownSourcePermission = context.getPackageManager().canRequestPackageInstalls();
-                        if (!hasUnknownSourcePermission) {
-                            try {
-                                Intent manageIntent = new Intent(
-                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:" + context.getPackageName())
-                                );
-                                manageIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                context.startActivity(manageIntent);
-                            } catch (Exception ex) {
-                                Log.w(TAG, "No se pudo abrir configuración de orígenes desconocidos", ex);
-                            }
-                        }
                     }
 
                     // Lanzar el instalador nativo de paquetes con FileProvider
@@ -175,7 +212,6 @@ public class UpdaterPlugin extends Plugin {
                     installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-                    // Conceder permisos explícitos de lectura a todos los componentes instaladores del sistema
                     List<ResolveInfo> resInfoList = context.getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
                     for (ResolveInfo resolveInfo : resInfoList) {
                         String targetPackage = resolveInfo.activityInfo.packageName;
@@ -186,12 +222,16 @@ public class UpdaterPlugin extends Plugin {
 
                     JSObject res = new JSObject();
                     res.put("success", true);
-                    res.put("message", hasUnknownSourcePermission ? "Instalador iniciado" : "Activa 'Permitir desde esta fuente' y regresa para continuar");
+                    res.put("message", "Instalador de Android iniciado. Confirma para actualizar sin perder tus datos.");
                     call.resolve(res);
 
                 } catch (Exception e) {
                     Log.e(TAG, "Fallo durante la descarga o instalación", e);
                     call.reject("Error en instalación: " + e.getMessage());
+                } finally {
+                    try { if (out != null) out.close(); } catch (Exception ignored) {}
+                    try { if (in != null) in.close(); } catch (Exception ignored) {}
+                    try { if (connection != null) connection.disconnect(); } catch (Exception ignored) {}
                 }
             }
         }).start();
