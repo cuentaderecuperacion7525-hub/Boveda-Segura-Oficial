@@ -25,15 +25,17 @@ app.use(express.json());
 // Opción B: Respaldo servidor vía Resend (RESEND_API_KEY) o Gmail SMTP (GMAIL_USER + GMAIL_PASS)
 const DEFAULT_APPS_SCRIPT_EMAIL_URL =
   'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
+const cleanEnv = (v?: string) => (v || '').trim().replace(/^["']|["']$/g, '').trim();
+
 const APPS_SCRIPT_EMAIL_URL = (
-  process.env.APPS_SCRIPT_EMAIL_URL ||
-  process.env.VITE_APPS_SCRIPT_EMAIL_URL ||
+  cleanEnv(process.env.APPS_SCRIPT_EMAIL_URL) ||
+  cleanEnv(process.env.VITE_APPS_SCRIPT_EMAIL_URL) ||
   DEFAULT_APPS_SCRIPT_EMAIL_URL
 ).trim();
-const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
-const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'Mi Bóveda <onboarding@resend.dev>').trim();
-const RAW_GMAIL_USER = (process.env.GMAIL_USER || '').trim();
-const RAW_GMAIL_PASS = (process.env.GMAIL_PASS || '').replace(/\s+/g, '').trim();
+const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
+const RESEND_FROM_EMAIL = cleanEnv(process.env.RESEND_FROM_EMAIL) || 'Mi Bóveda <onboarding@resend.dev>';
+const RAW_GMAIL_USER = cleanEnv(process.env.GMAIL_USER);
+const RAW_GMAIL_PASS = cleanEnv(process.env.GMAIL_PASS).replace(/\s+/g, '').trim();
 
 const isPlaceholder = (val: string) =>
   !val ||
@@ -220,7 +222,7 @@ async function enviarCorreoConfirmacion(
 
   let confirmLink = await createDirectConfirmationUrl(token, cleanCorreo, cleanNombre, options?.originBase);
   const serverConfirmLink = buildServerConfirmationUrl(token, options?.originBase);
-  const subject = `${cleanPin} es tu código de acceso a Mi Bóveda`;
+  const subject = `Mi Bóveda: Tu código de verificación (${cleanPin})`;
   const buildText = (link: string) =>
     `Hola ${cleanNombre},\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n${cleanPin}\n\nEste código es de un solo uso y vence en 5 minutos.\n\n¿Prefieres confirmar directamente con enlace? Abre: ${link}\n\nSaludos,\nMi Bóveda`;
   const buildHtml = (link: string) => `
@@ -235,16 +237,14 @@ async function enviarCorreoConfirmacion(
         <div style="text-align: center; margin: 20px 0; padding: 14px 12px; background-color: #eff6ff; border: 1px dashed #93c5fd; border-radius: 12px; white-space: nowrap;">
           <span style="font-size: 24px; font-weight: bold; letter-spacing: 6px; color: #1e3a8a; font-family: 'Courier New', Courier, monospace; white-space: nowrap; display: inline-block;">${cleanPin}</span>
         </div>
-        <p style="margin: 14px 0 18px 0; color: #6b7280; font-size: 12px; line-height: 1.4; text-align: center;">
+        <p style="margin: 14px 0 18px 0; color: #6b7280; font-size: 13px; line-height: 1.4; text-align: center;">
           Este código es de un solo uso y caduca automáticamente a los 5 minutos.
         </p>
-        <div style="border-top: 1px solid #f3f4f6; padding-top: 12px; margin-top: 14px; text-align: center;">
-          <span style="font-size: 9px; color: #9ca3af; line-height: 1.3;">
-            ¿Prefieres confirmar sin escribir el código?
-            <a href="${link}" style="color: #6b7280; text-decoration: underline; font-size: 9px;">
-              Confirmar cuenta tocando este enlace
-            </a>
-          </span>
+        <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px; text-align: center;">
+          <p style="margin: 0 0 10px 0; font-size: 13px; color: #4b5563;">¿Prefieres confirmar sin escribir el código?</p>
+          <a href="${link}" style="display: inline-block; padding: 10px 18px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: bold;">
+            Confirmar cuenta tocando este enlace
+          </a>
         </div>
       </div>`;
 
@@ -282,38 +282,8 @@ async function enviarCorreoConfirmacion(
     }
   }
 
-  // Opción B1: Resend API (si está configurado en entorno)
-  if (!delivered && VALID_RESEND_KEY) {
-    try {
-      confirmLink = serverConfirmLink;
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${VALID_RESEND_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: RESEND_FROM_EMAIL,
-          to: [cleanCorreo],
-          subject,
-          text: buildText(serverConfirmLink),
-          html: buildHtml(serverConfirmLink),
-        }),
-      });
-      const resendData: any = await resendRes.json().catch(() => null);
-      if (resendRes.ok && resendData?.id) {
-        delivered = true;
-        provider = 'resend';
-      } else {
-        lastError = resendData?.message || `Resend HTTP ${resendRes.status}`;
-      }
-    } catch (err: any) {
-      lastError = err?.message || 'Error conectando con Resend';
-    }
-  }
-
-  // Opción B2: Gmail SMTP vía nodemailer (si GMAIL_USER y GMAIL_PASS están configurados en entorno)
-  if (!delivered && transporter) {
+  const tryGmailSmtp = async () => {
+    if (!transporter || delivered) return;
     try {
       confirmLink = serverConfirmLink;
       const info = await transporter.sendMail({
@@ -334,6 +304,48 @@ async function enviarCorreoConfirmacion(
     } catch (err: any) {
       lastError = err?.message || 'Credenciales SMTP rechazadas por Gmail';
     }
+  };
+
+  const tryResendApi = async () => {
+    if (!VALID_RESEND_KEY || delivered) return;
+    try {
+      confirmLink = serverConfirmLink;
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${VALID_RESEND_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM_EMAIL,
+          to: [cleanCorreo],
+          subject,
+          text: buildText(serverConfirmLink),
+          html: buildHtml(serverConfirmLink),
+        }),
+      });
+      const resendData: any = await resendRes.json().catch(() => null);
+      if (resendRes.ok && resendData?.id) {
+        delivered = true;
+        provider = 'resend';
+        console.log(`[Resend] Código ${cleanPin} + enlace enviado a: ${cleanCorreo} | token: ${token} | id: ${resendData.id}`);
+      } else {
+        lastError = resendData?.message || `Resend HTTP ${resendRes.status}`;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error conectando con Resend';
+    }
+  };
+
+  // Si Resend usa onboarding@resend.dev (sandbox), priorizar Gmail SMTP verificado;
+  // si Resend usa un dominio propio verificado, intentar Resend primero y Gmail SMTP como respaldo.
+  const resendUsesSandbox = RESEND_FROM_EMAIL.includes('onboarding@resend.dev');
+  if (resendUsesSandbox && transporter) {
+    await tryGmailSmtp();
+    await tryResendApi();
+  } else {
+    await tryResendApi();
+    await tryGmailSmtp();
   }
 
   if (!delivered) {
@@ -368,13 +380,66 @@ async function enviarCorreoConfirmacion(
 }
 
 // 0) Diagnóstico de proveedores de correo configurados (solo banderas booleanas, sin exponer llaves)
-app.get('/api/email-health', (_req: Request, res: Response) => {
-  res.json({
+app.get('/api/email-health', async (req: Request, res: Response) => {
+  const baseProviders = {
+    appsScript: APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/'),
+    appsScriptMatchesDefault: APPS_SCRIPT_EMAIL_URL === DEFAULT_APPS_SCRIPT_EMAIL_URL,
+    resend: Boolean(VALID_RESEND_KEY),
+    resendFromIsOnboarding: RESEND_FROM_EMAIL.includes('onboarding@resend.dev'),
+    gmailSmtp: Boolean(transporter),
+  };
+
+  if (req.query.deep !== '1') {
+    return res.json({ ok: true, providers: baseProviders });
+  }
+
+  let appsScriptPing: any = null;
+  if (baseProviders.appsScript) {
+    try {
+      const r = await fetch(`${APPS_SCRIPT_EMAIL_URL}?action=ping`, { method: 'GET' });
+      appsScriptPing = await r.json().catch(() => ({ httpStatus: r.status }));
+    } catch (e: any) {
+      appsScriptPing = { ok: false, error: e?.message || 'fetch failed' };
+    }
+  }
+
+  let smtpVerified = false;
+  let smtpError = '';
+  if (transporter) {
+    try {
+      await transporter.verify();
+      smtpVerified = true;
+    } catch (e: any) {
+      smtpError = e?.message || 'verify failed';
+    }
+  }
+
+  let resendApiOk = false;
+  let resendError = '';
+  if (VALID_RESEND_KEY) {
+    try {
+      const r = await fetch('https://api.resend.com/domains', {
+        headers: { Authorization: `Bearer ${VALID_RESEND_KEY}` },
+      });
+      resendApiOk = r.ok;
+      if (!r.ok) {
+        const body: any = await r.json().catch(() => null);
+        resendError = body?.message || `HTTP ${r.status}`;
+      }
+    } catch (e: any) {
+      resendError = e?.message || 'fetch failed';
+    }
+  }
+
+  return res.json({
     ok: true,
-    providers: {
-      appsScript: APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/'),
-      resend: Boolean(VALID_RESEND_KEY),
-      gmailSmtp: Boolean(transporter),
+    providers: baseProviders,
+    deep: {
+      appsScriptPing,
+      smtpVerified,
+      smtpError: smtpError || undefined,
+      resendApiOk,
+      resendError: resendError || undefined,
     },
   });
 });

@@ -5,6 +5,8 @@
  * Sincronización tolerante a fallos con Firestore + respaldo local en dispositivo.
  */
 
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+
 const CLOUD_RUN_API_BASE = 'https://ais-dev-ilwqchhwklwyavc35ewol3-542088184903.us-west2.run.app';
 const SHARED_RUN_API_BASE = 'https://ais-pre-ilwqchhwklwyavc35ewol3-542088184903.us-west2.run.app';
 const FIRESTORE_PROJECT_ID = 'studio-7313343442-ab21c';
@@ -17,7 +19,10 @@ const DEFAULT_APPS_SCRIPT_EMAIL_URL =
   'https://script.google.com/macros/s/AKfycbzIrBG_ktcSG9N2UEGDq46DlywnnjJPEcnBCiazyjhNgPEQ0zP96HP7DkvTDHB-AzSWXQ/exec';
 
 export function getAppsScriptEmailUrl(): string {
-  const envUrl = String(import.meta.env.VITE_APPS_SCRIPT_EMAIL_URL || '').trim();
+  const envUrl = String(import.meta.env.VITE_APPS_SCRIPT_EMAIL_URL || '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
   if (envUrl.startsWith('https://script.google.com/macros/s/')) {
     return envUrl;
   }
@@ -28,6 +33,21 @@ export function getAppsScriptEmailUrl(): string {
     }
   } catch {}
   return DEFAULT_APPS_SCRIPT_EMAIL_URL;
+}
+
+function getAppsScriptEmailUrls(): string[] {
+  const backupUrl = String(import.meta.env.VITE_APPS_SCRIPT_BACKUP_URL || '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  return Array.from(
+    new Set(
+      [
+        getAppsScriptEmailUrl(),
+        backupUrl.startsWith('https://script.google.com/macros/s/') ? backupUrl : '',
+      ].filter(Boolean)
+    )
+  );
 }
 
 function isNativeOrRemoteClient(): boolean {
@@ -288,6 +308,71 @@ export async function checkEmailConfirmationStatus(
   return { confirmed: false };
 }
 
+async function postAppsScriptJson(
+  appsScriptUrl: string,
+  payload: Record<string, any>,
+  timeoutMs = 18000
+): Promise<{ ok: boolean; status: number; data: any }> {
+  // 1. Intentar primero con fetch estándar (soporta 302 -> GET de Google Apps Script en Chrome/WebView)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const gasRes = await fetch(appsScriptUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const gasData = await gasRes.json().catch(() => null);
+    if (gasData !== null || !Capacitor.isNativePlatform()) {
+      return { ok: gasRes.ok, status: gasRes.status, data: gasData };
+    }
+  } catch (fetchErr) {
+    if (!Capacitor.isNativePlatform()) {
+      throw fetchErr;
+    }
+  }
+
+  // 2. Respaldo HTTP nativo Android (OkHttp/HttpURLConnection) si el WebView bloqueó CORS o redirección 302
+  let nativeRes = await CapacitorHttp.post({
+    url: appsScriptUrl,
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    data: JSON.stringify(payload),
+    connectTimeout: 12000,
+    readTimeout: timeoutMs,
+  });
+  if (nativeRes.status >= 300 && nativeRes.status < 400 && nativeRes.headers) {
+    const loc =
+      nativeRes.headers.Location ||
+      nativeRes.headers.location ||
+      nativeRes.headers['Location'] ||
+      nativeRes.headers['location'];
+    if (loc) {
+      nativeRes = await CapacitorHttp.get({
+        url: String(loc),
+        connectTimeout: 12000,
+        readTimeout: timeoutMs,
+      });
+    }
+  }
+  let parsed: any = nativeRes.data;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = null;
+    }
+  }
+  return {
+    ok: nativeRes.status >= 200 && nativeRes.status < 300,
+    status: nativeRes.status,
+    data: parsed,
+  };
+}
+
 export async function sendEmailPin(email: string, firstName?: string): Promise<SendPinResult> {
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = (firstName || 'Usuario').trim() || 'Usuario';
@@ -326,33 +411,22 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
   let lastError = '';
   let appsScriptAttempted = false;
 
-  // 1. Opción A (Principal 24/7 en APK Android y Web): Google Apps Script Web App
-  const appsScriptUrl = getAppsScriptEmailUrl();
-  if (appsScriptUrl) {
+  // 1. Opción A (Principal 24/7 en APK Android y Web): Google Apps Script Web App (soporta URL principal y respaldo)
+  const appsScriptUrls = getAppsScriptEmailUrls();
+  const appsScriptUrl = appsScriptUrls[0] || '';
+  for (const currentGasUrl of appsScriptUrls) {
     appsScriptAttempted = true;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 18000);
-
-      // text/plain evita preflight CORS en Google Apps Script manteniendo el JSON intacto
-      const gasRes = await fetch(appsScriptUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify({
-          action: 'send_verification',
-          email: cleanEmail,
-          firstName: cleanName,
-          token,
-          pin,
-          createdAt,
-        }),
-        signal: controller.signal,
+      const gasRes = await postAppsScriptJson(currentGasUrl, {
+        action: 'send_verification',
+        email: cleanEmail,
+        firstName: cleanName,
+        token,
+        pin,
+        createdAt,
       });
-      clearTimeout(timeoutId);
 
-      const gasData = await gasRes.json().catch(() => null);
+      const gasData = gasRes.data;
       if (gasRes.ok && gasData?.success === true && gasData?.delivered !== false) {
         updateFirestoreDocStatus({
           token,
@@ -385,12 +459,13 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
     }
   }
 
-  // 2. Opción B (Respaldo en servidor para Web y APK Android): /api/send-email-pin (Resend / Gmail SMTP)
+  // 2. Opción B (Respaldo en servidor para Web / backend público): /api/send-email-pin (Gmail SMTP / Resend)
   const sendEndpoints = getApiEndpoints('/api/send-email-pin');
+  const serverTimeoutMs = isNativeOrRemoteClient() ? 5000 : 15000;
   for (const endpoint of sendEndpoints) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), serverTimeoutMs);
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -469,17 +544,13 @@ export async function verifyEmailPin(
   const appsScriptUrl = getAppsScriptEmailUrl();
   if (appsScriptUrl && token) {
     try {
-      const gasRes = await fetch(appsScriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'verify_pin',
-          email: cleanEmail,
-          token,
-          pin: cleanPin,
-        }),
+      const gasRes = await postAppsScriptJson(appsScriptUrl, {
+        action: 'verify_pin',
+        email: cleanEmail,
+        token,
+        pin: cleanPin,
       });
-      const gasData = await gasRes.json().catch(() => null);
+      const gasData = gasRes.data;
       if (gasData && !gasData.notFound) {
         if (gasData.success) {
           if (localSession) {

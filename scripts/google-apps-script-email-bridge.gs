@@ -410,7 +410,7 @@ function doPost(e) {
     var safePin = escapeHtml(pin);
     var safeLink = escapeHtml(confirmLink);
 
-    var subject = pin + ' es tu código de acceso a Mi Bóveda';
+    var subject = 'Mi Bóveda: Tu código de verificación (' + pin + ')';
     var textBody =
       'Hola ' +
       firstName +
@@ -432,13 +432,13 @@ function doPost(e) {
       '<span style="font-size: 24px; font-weight: bold; letter-spacing: 6px; color: #1e3a8a; font-family: \'Courier New\', Courier, monospace; white-space: nowrap; display: inline-block;">' +
       safePin +
       '</span></div>' +
-      '<p style="margin: 14px 0 18px 0; color: #6b7280; font-size: 12px; line-height: 1.4; text-align: center;">Este código es de un solo uso y caduca automáticamente a los 5 minutos.</p>' +
-      '<div style="border-top: 1px solid #f3f4f6; padding-top: 12px; margin-top: 14px; text-align: center;">' +
-      '<span style="font-size: 9px; color: #9ca3af; line-height: 1.3;">¿Prefieres confirmar sin escribir el código? ' +
+      '<p style="margin: 14px 0 18px 0; color: #6b7280; font-size: 13px; line-height: 1.4; text-align: center;">Este código es de un solo uso y caduca automáticamente a los 5 minutos.</p>' +
+      '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px; text-align: center;">' +
+      '<p style="margin: 0 0 10px 0; font-size: 13px; color: #4b5563;">¿Prefieres confirmar sin escribir el código?</p>' +
       '<a href="' +
       safeLink +
-      '" style="color: #6b7280; text-decoration: underline; font-size: 9px;">Confirmar cuenta tocando este enlace</a>' +
-      '</span></div></div>';
+      '" style="display: inline-block; padding: 10px 18px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: bold;">Confirmar cuenta tocando este enlace</a>' +
+      '</div></div>';
 
     var remainingQuota = 1;
     try {
