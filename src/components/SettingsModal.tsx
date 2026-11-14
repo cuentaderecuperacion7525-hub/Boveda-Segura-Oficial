@@ -1147,7 +1147,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <label
                   onClick={() => {
                     (window as any).__isPickingFile = true;
-                    (window as any).__isProcessingBackup = true;
                     (window as any).__filePickingStartTime = Date.now();
                   }}
                   className={`w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer ${
@@ -1164,10 +1163,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="file"
                     accept=".json,application/json,text/plain,application/octet-stream,*/*"
                     onChange={handleImportBackup}
-                    onClick={() => {
+                    onClick={(e) => {
                       (window as any).__isPickingFile = true;
-                      (window as any).__isProcessingBackup = true;
                       (window as any).__filePickingStartTime = Date.now();
+                      (e.target as HTMLInputElement).value = '';
                     }}
                     disabled={isImporting}
                     className="hidden"

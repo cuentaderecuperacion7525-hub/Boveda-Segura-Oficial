@@ -112,6 +112,32 @@ export function formatAutoLockSummary(
   return `Protección activa: ${parts.join(' y ')}`;
 }
 
+let filePickerCleanupTimer: number | null = null;
+
+export function cancelFilePickerCleanup(): void {
+  if (filePickerCleanupTimer !== null) {
+    window.clearTimeout(filePickerCleanupTimer);
+    filePickerCleanupTimer = null;
+  }
+}
+
+export function markFilePickerStarted(): void {
+  if (typeof window === 'undefined') return;
+  cancelFilePickerCleanup();
+  const w = window as any;
+  w.__isPickingFile = true;
+  w.__filePickingStartTime = Date.now();
+}
+
+export function scheduleFilePickerCleanup(delayMs = 1800): void {
+  if (typeof window === 'undefined') return;
+  cancelFilePickerCleanup();
+  filePickerCleanupTimer = window.setTimeout(() => {
+    filePickerCleanupTimer = null;
+    (window as any).__isPickingFile = false;
+  }, delayMs);
+}
+
 /**
  * Checks whether a protected system/native workflow is currently running over the WebView
  * (file picker, backup export/import, Google auth, biometric prompt, camera, update installer,

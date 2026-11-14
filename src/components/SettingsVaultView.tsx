@@ -866,7 +866,14 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
 
   const handleFileRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setTimeout(() => {
+        (window as any).__isPickingFile = false;
+      }, 1000);
+      return;
+    }
+    (window as any).__isPickingFile = true;
+    (window as any).__isProcessingBackup = true;
     await processBackupBlob(file, file.name);
   };
 
@@ -1542,15 +1549,23 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                 </div>
               )}
 
-              <label className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/20 active:scale-98">
+              <label
+                onClick={() => {
+                  (window as any).__isPickingFile = true;
+                  (window as any).__filePickingStartTime = Date.now();
+                }}
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-600/20 active:scale-98"
+              >
                 <Upload className={`w-4 h-4 text-white shrink-0 transition-transform ${isImporting ? 'anim-arrow-up-fast' : 'anim-arrow-up'}`} />
                 <span>{isImporting ? 'Restaurando archivo...' : 'Seleccionar Archivo de Respaldo (.json)'}</span>
                 <input
                   type="file"
-                  accept=".json"
+                  accept=".json,application/json,text/plain,application/octet-stream,*/*"
                   className="hidden"
                   disabled={isImporting}
                   onClick={(e) => {
+                    (window as any).__isPickingFile = true;
+                    (window as any).__filePickingStartTime = Date.now();
                     (e.target as HTMLInputElement).value = '';
                   }}
                   onChange={handleFileRestore}

@@ -1175,7 +1175,11 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               {/* Opción Cámara */}
               <button
                 type="button"
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={() => {
+                  (window as any).__isPickingFile = true;
+                  (window as any).__filePickingStartTime = Date.now();
+                  cameraInputRef.current?.click();
+                }}
                 className="w-full py-4 px-4 rounded-2xl flex items-center gap-4 hover:bg-slate-800/40 active:bg-slate-800/70 transition-colors text-left cursor-pointer group"
               >
                 <Camera className="w-6 h-6 text-slate-300 group-hover:text-cyan-400 transition-colors" />
@@ -1187,7 +1191,11 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
               {/* Opción Galería */}
               <button
                 type="button"
-                onClick={() => galleryInputRef.current?.click()}
+                onClick={() => {
+                  (window as any).__isPickingFile = true;
+                  (window as any).__filePickingStartTime = Date.now();
+                  galleryInputRef.current?.click();
+                }}
                 className="w-full py-4 px-4 rounded-2xl flex items-center gap-4 hover:bg-slate-800/40 active:bg-slate-800/70 transition-colors text-left cursor-pointer group"
               >
                 <ImageIcon className="w-6 h-6 text-slate-300 group-hover:text-cyan-400 transition-colors" />

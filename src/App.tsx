@@ -38,6 +38,8 @@ import {
   getSavedExitGraceSeconds,
   saveExitGraceSeconds,
   isProtectedOperationActive,
+  markFilePickerStarted,
+  scheduleFilePickerCleanup,
 } from './services/autoLockService';
 
 export default function App() {
@@ -428,6 +430,41 @@ export default function App() {
       // Usuario regresó dentro de ventana permitida: actualizar actividad y retirar escudo
       lastActivityTimestampRef.current = now;
       setIsPrivacyBlurActive(false);
+
+      // Si venía de un selector de archivos nativo (galería o copia de seguridad), esperar brevemente
+      // a que termine de dispararse el evento onChange y luego limpiar la bandera automáticamente.
+      if ((window as any).__isPickingFile) {
+        scheduleFilePickerCleanup(2000);
+      }
+    };
+
+    const handleCaptureFileInputClick = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const isDirectFileInput = target instanceof HTMLInputElement && target.type === 'file';
+      const labelFileInput =
+        !isDirectFileInput && target.closest
+          ? target.closest('label')?.querySelector('input[type="file"]')
+          : null;
+      if (isDirectFileInput || labelFileInput) {
+        markFilePickerStarted();
+      }
+    };
+
+    const handleCaptureFileInputChange = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement && target.type === 'file') {
+        lastActivityTimestampRef.current = Date.now();
+        scheduleFilePickerCleanup(1800);
+      }
+    };
+
+    const handleCaptureFileInputCancel = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement && target.type === 'file') {
+        lastActivityTimestampRef.current = Date.now();
+        scheduleFilePickerCleanup(500);
+      }
     };
 
     const onVisibilityChange = () => {
@@ -438,6 +475,9 @@ export default function App() {
       }
     };
 
+    document.addEventListener('click', handleCaptureFileInputClick, true);
+    document.addEventListener('change', handleCaptureFileInputChange, true);
+    document.addEventListener('cancel', handleCaptureFileInputCancel, true);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('pagehide', handleAppBackground);
     window.addEventListener('focus', handleAppForeground);
@@ -466,6 +506,9 @@ export default function App() {
         window.clearTimeout(exitGraceTimerRef.current);
         exitGraceTimerRef.current = null;
       }
+      document.removeEventListener('click', handleCaptureFileInputClick, true);
+      document.removeEventListener('change', handleCaptureFileInputChange, true);
+      document.removeEventListener('cancel', handleCaptureFileInputCancel, true);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('pagehide', handleAppBackground);
       window.removeEventListener('focus', handleAppForeground);
