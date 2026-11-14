@@ -2,7 +2,7 @@
  * Servicio de detección, notificación y aplicación de actualizaciones para la aplicación.
  */
 
-import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG, VersionInfo } from '../version';
+import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER, VersionInfo } from '../version';
 import { getSafeAppVersionCode } from './nativeUpdaterBridge';
 
 const OFFICIAL_GITHUB_REPO = 'cuentaderecuperacion7525-hub/Boveda-Segura-Oficial';
@@ -14,14 +14,28 @@ const STALE_GITHUB_REPOS = new Set([
   'cuentaderecuperacion7525-hub/Mi-B-veda',
 ]);
 
+export interface NovedadItem {
+  titulo: string;
+  descripcion: string;
+}
+
+export interface CachedReleaseNotes {
+  version: string;
+  fecha: string;
+  novedades: NovedadItem[];
+}
+
 export interface UpdateCheckResult {
   hasUpdate: boolean;
   currentVersion: string;
   latestVersion: string;
+  serverVersion?: string;
   buildNumber?: number;
   publishedAtMs?: number;
   repoName?: string;
+  fecha?: string;
   releaseDate?: string;
+  novedades?: NovedadItem[];
   changelog?: string[];
   mandatory?: boolean;
   isServiceWorkerReady?: boolean;
@@ -69,6 +83,47 @@ class UpdateService {
     return 0;
   }
 
+  private parseNovedadesItems(rawData: any): NovedadItem[] {
+    if (Array.isArray(rawData?.novedades) && rawData.novedades.length > 0) {
+      return rawData.novedades
+        .map((item: any) => ({
+          titulo: String(item?.titulo ?? '').trim(),
+          descripcion: String(item?.descripcion ?? item?.texto ?? '').trim(),
+        }))
+        .filter((item: NovedadItem) => item.titulo.length > 0 || item.descripcion.length > 0);
+    }
+
+    const legacyArray = Array.isArray(rawData?.changelog)
+      ? rawData.changelog
+      : Array.isArray(rawData?.cambios)
+      ? rawData.cambios
+      : null;
+
+    if (legacyArray && legacyArray.length > 0 && !this.isLegacyStaticChangelog(legacyArray)) {
+      return legacyArray
+        .map((entry: any) => {
+          if (entry && typeof entry === 'object') {
+            return {
+              titulo: String(entry.titulo ?? '').trim(),
+              descripcion: String(entry.descripcion ?? entry.texto ?? '').trim(),
+            };
+          }
+          const line = String(entry || '').trim();
+          const colonIdx = line.indexOf(':');
+          if (colonIdx > 0 && colonIdx < 60) {
+            return {
+              titulo: line.slice(0, colonIdx).trim(),
+              descripcion: line.slice(colonIdx + 1).trim(),
+            };
+          }
+          return { titulo: '', descripcion: line };
+        })
+        .filter((item: NovedadItem) => item.titulo.length > 0 || item.descripcion.length > 0);
+    }
+
+    return [];
+  }
+
   private parseReleaseBodyLines(body?: string): string[] {
     if (!body || typeof body !== 'string') return [];
     const lines = body
@@ -87,6 +142,59 @@ class UpdateService {
         typeof line === 'string' &&
         /nueva interfaz minimalista de registro e inicio de sesi[oó]n con verificaci[oó]n de correo mediante c[oó]digo de 6 d[ií]gitos/i.test(line)
     );
+  }
+
+  public formatSpanishDate(fechaRaw?: string): string {
+    const raw = String(fechaRaw || '').trim();
+    if (!raw) return '';
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const monthIdx = Number(isoMatch[2]) - 1;
+      const day = Number(isoMatch[3]);
+      const months = [
+        'enero',
+        'febrero',
+        'marzo',
+        'abril',
+        'mayo',
+        'junio',
+        'julio',
+        'agosto',
+        'septiembre',
+        'octubre',
+        'noviembre',
+        'diciembre',
+      ];
+      if (monthIdx >= 0 && monthIdx < 12 && day >= 1 && day <= 31) {
+        return `${day} de ${months[monthIdx]} de ${year}`;
+      }
+    }
+
+    return raw;
+  }
+
+  public getCachedReleaseNotes(): CachedReleaseNotes | null {
+    try {
+      const raw = localStorage.getItem('vault_cached_release_notes_v1');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      const novedades = this.parseNovedadesItems(parsed);
+      const version = String(parsed.version || '').replace(/^v/, '').trim();
+      const fecha = String(parsed.fecha || '').trim();
+      if (!version && !fecha && novedades.length === 0) return null;
+      return { version, fecha, novedades };
+    } catch {
+      return null;
+    }
+  }
+
+  public saveCachedReleaseNotes(notes: CachedReleaseNotes): void {
+    try {
+      localStorage.setItem('vault_cached_release_notes_v1', JSON.stringify(notes));
+    } catch {}
   }
 
   private computeBuildFromTag(tag: string): number {
@@ -160,7 +268,7 @@ class UpdateService {
       }
 
       const cacheBuster = `_t=${Date.now()}`;
-      let remoteData: VersionInfo | null = null;
+      let remoteData: (VersionInfo & { fecha?: string; novedades?: NovedadItem[] }) | null = null;
       let directApkUrl = '';
       let remoteBuild = 0;
       let remoteVersionStr = installedVersionName;
@@ -191,10 +299,14 @@ class UpdateService {
               directApkUrl = apkAsset?.browser_download_url ||
                 `https://github.com/${repo}/releases/download/${release.tag_name}/Boveda-Calculadora.apk`;
 
-              let resolvedChangelog = this.parseReleaseBodyLines(release.body);
-              let resolvedDate = release.published_at
-                ? new Date(release.published_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
-                : CURRENT_RELEASE_DATE;
+              let resolvedNovedades: NovedadItem[] = [];
+              let resolvedRawFecha = '';
+              if (release.published_at) {
+                const pubDate = new Date(release.published_at);
+                if (!Number.isNaN(pubDate.getTime())) {
+                  resolvedRawFecha = `${pubDate.getFullYear()}-${String(pubDate.getMonth() + 1).padStart(2, '0')}-${String(pubDate.getDate()).padStart(2, '0')}`;
+                }
+              }
 
               const versionJsonAsset = release.assets?.find((a: any) =>
                 a.name && a.name.toLowerCase() === 'version.json'
@@ -209,23 +321,30 @@ class UpdateService {
                     if (vjData.version || vjData.version_name) {
                       remoteVersionStr = String(vjData.version || vjData.version_name).replace(/^v/, '');
                     }
-                    if (typeof vjData.releaseDate === 'string' && vjData.releaseDate.trim()) {
-                      resolvedDate = vjData.releaseDate;
+                    if (typeof vjData.fecha === 'string' && vjData.fecha.trim()) {
+                      resolvedRawFecha = vjData.fecha.trim();
+                    } else if (typeof vjData.releaseDate === 'string' && vjData.releaseDate.trim()) {
+                      resolvedRawFecha = vjData.releaseDate.trim();
                     }
-                    if (Array.isArray(vjData.changelog) && vjData.changelog.length > 0 && !this.isLegacyStaticChangelog(vjData.changelog)) {
-                      resolvedChangelog = vjData.changelog;
-                    }
+                    resolvedNovedades = this.parseNovedadesItems(vjData);
                   }
                 } catch {
                   // Fallback al cuerpo de la release
                 }
               }
 
+              if (resolvedNovedades.length === 0) {
+                const bodyLines = this.parseReleaseBodyLines(release.body);
+                resolvedNovedades = this.parseNovedadesItems({ changelog: bodyLines });
+              }
+
               remoteData = {
                 version: remoteVersionStr,
                 buildNumber: remoteBuild,
-                releaseDate: resolvedDate,
-                changelog: resolvedChangelog.length > 0 ? resolvedChangelog : CURRENT_CHANGELOG,
+                fecha: resolvedRawFecha,
+                releaseDate: this.formatSpanishDate(resolvedRawFecha),
+                novedades: resolvedNovedades,
+                changelog: resolvedNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion)),
                 mandatory: false
               };
               resolvedRepo = repo;
@@ -244,18 +363,19 @@ class UpdateService {
             const cdnRes = await fetch(releaseJsonUrl, { cache: 'no-store' });
             if (cdnRes.ok) {
               const cdnData = await cdnRes.json();
-              remoteVersionStr = String(cdnData.version_name ?? cdnData.version ?? installedVersionName).replace(/^v/, '');
+              remoteVersionStr = String(cdnData.version ?? cdnData.version_name ?? installedVersionName).replace(/^v/, '');
               remoteBuild = Number(cdnData.version_code ?? cdnData.buildNumber ?? this.computeBuildFromTag(remoteVersionStr));
               remotePublishedMs = cdnData.published_at ? Date.parse(cdnData.published_at) || 0 : 0;
               directApkUrl = cdnData.download_url || `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
-              const cdnChangelog = Array.isArray(cdnData.changelog) && cdnData.changelog.length > 0 && !this.isLegacyStaticChangelog(cdnData.changelog)
-                ? cdnData.changelog
-                : CURRENT_CHANGELOG;
+              const cdnFecha = String(cdnData.fecha || cdnData.releaseDate || '').trim();
+              const cdnNovedades = this.parseNovedadesItems(cdnData);
               remoteData = {
                 version: remoteVersionStr,
                 buildNumber: remoteBuild,
-                releaseDate: cdnData.releaseDate || CURRENT_RELEASE_DATE,
-                changelog: cdnChangelog,
+                fecha: cdnFecha,
+                releaseDate: this.formatSpanishDate(cdnFecha),
+                novedades: cdnNovedades,
+                changelog: cdnNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion)),
                 mandatory: Boolean(cdnData.mandatory),
               };
               resolvedRepo = repo;
@@ -278,16 +398,18 @@ class UpdateService {
             }
             if (ghRes.ok) {
               const rawData = await ghRes.json();
-              remoteVersionStr = String(rawData.version_name ?? rawData.version ?? installedVersionName).replace(/^v/, '');
+              remoteVersionStr = String(rawData.version ?? rawData.version_name ?? installedVersionName).replace(/^v/, '');
               remoteBuild = Number(rawData.version_code ?? rawData.buildNumber ?? this.computeBuildFromTag(remoteVersionStr));
               directApkUrl = rawData.download_url || `https://github.com/${repo}/releases/latest/download/Boveda-Calculadora.apk`;
+              const rawFecha = String(rawData.fecha || rawData.releaseDate || '').trim();
+              const rawNovedades = this.parseNovedadesItems(rawData);
               remoteData = {
                 version: remoteVersionStr,
                 buildNumber: remoteBuild,
-                releaseDate: rawData.releaseDate || CURRENT_RELEASE_DATE,
-                changelog: Array.isArray(rawData.changelog) && rawData.changelog.length > 0 && !this.isLegacyStaticChangelog(rawData.changelog)
-                  ? rawData.changelog
-                  : CURRENT_CHANGELOG,
+                fecha: rawFecha,
+                releaseDate: this.formatSpanishDate(rawFecha),
+                novedades: rawNovedades,
+                changelog: rawNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion)),
                 mandatory: Boolean(rawData.mandatory),
               };
               resolvedRepo = repo;
@@ -316,10 +438,20 @@ class UpdateService {
 
         if (response.ok) {
           const rawData = await response.json();
-          remoteData = rawData;
           remoteBuild = Number(rawData.version_code ?? rawData.buildNumber ?? 0);
-          remoteVersionStr = String(rawData.version_name ?? rawData.version ?? CURRENT_APP_VERSION).replace(/^v/, '');
+          remoteVersionStr = String(rawData.version ?? rawData.version_name ?? CURRENT_APP_VERSION).replace(/^v/, '');
           directApkUrl = rawData.download_url || '/';
+          const localFecha = String(rawData.fecha || rawData.releaseDate || '').trim();
+          const localNovedades = this.parseNovedadesItems(rawData);
+          remoteData = {
+            version: remoteVersionStr,
+            buildNumber: remoteBuild,
+            fecha: localFecha,
+            releaseDate: this.formatSpanishDate(localFecha),
+            novedades: localNovedades,
+            changelog: localNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion)),
+            mandatory: Boolean(rawData.mandatory),
+          };
         }
       }
 
@@ -329,6 +461,17 @@ class UpdateService {
         } else {
           throw new Error('No se pudo obtener información de versión del servidor.');
         }
+      }
+
+      // Guardar en localStorage la última respuesta válida descargada de version.json
+      const resolvedNovedades = remoteData.novedades || this.parseNovedadesItems(remoteData);
+      const resolvedFecha = String(remoteData.fecha || remoteData.releaseDate || '').trim();
+      if (remoteVersionStr || resolvedFecha || resolvedNovedades.length > 0) {
+        this.saveCachedReleaseNotes({
+          version: remoteVersionStr,
+          fecha: resolvedFecha,
+          novedades: resolvedNovedades,
+        });
       }
 
       // Comparar versión SemVer, buildNumber (versionCode) y fecha de publicación en GitHub
@@ -361,20 +504,18 @@ class UpdateService {
       const effectiveDownloadUrl = directApkUrl || (remoteData as any).download_url ||
         `https://github.com/${resolvedRepo}/releases/latest/download/Boveda-Calculadora.apk`;
 
-      const effectiveChangelog =
-        hasRemoteUpdate && Array.isArray(remoteData.changelog) && remoteData.changelog.length > 0 && !this.isLegacyStaticChangelog(remoteData.changelog)
-          ? remoteData.changelog
-          : CURRENT_CHANGELOG;
-
       const result: UpdateCheckResult = {
         hasUpdate,
         currentVersion: cleanInstalled,
         latestVersion: hasRemoteUpdate ? cleanRemote : cleanInstalled,
+        serverVersion: cleanRemote,
         buildNumber: remoteBuild,
         publishedAtMs: remotePublishedMs || undefined,
         repoName: resolvedRepo,
-        releaseDate: hasRemoteUpdate ? (remoteData.releaseDate || CURRENT_RELEASE_DATE) : CURRENT_RELEASE_DATE,
-        changelog: effectiveChangelog,
+        fecha: resolvedFecha,
+        releaseDate: this.formatSpanishDate(resolvedFecha),
+        novedades: resolvedNovedades,
+        changelog: resolvedNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion)),
         mandatory: remoteData.mandatory || false,
         isServiceWorkerReady: swHasUpdate,
         downloadUrl: effectiveDownloadUrl,

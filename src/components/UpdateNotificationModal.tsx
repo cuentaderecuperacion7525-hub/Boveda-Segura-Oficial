@@ -10,9 +10,9 @@ import {
   Download,
   AlertCircle
 } from 'lucide-react';
-import { updateService, UpdateCheckResult } from '../services/updateService';
+import { updateService, UpdateCheckResult, NovedadItem } from '../services/updateService';
 import { downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
-import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
+import { CURRENT_APP_VERSION } from '../version';
 
 interface UpdateNotificationModalProps {
   // Cuando se detecta una nueva actualización
@@ -35,27 +35,33 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [isComplete, setIsComplete] = useState<boolean>(false);
   const [installError, setInstallError] = useState<string | null>(null);
-  const [dynamicNotes, setDynamicNotes] = useState<{ fecha: string; cambios: string[] }>({
-    fecha: CURRENT_RELEASE_DATE,
-    cambios: CURRENT_CHANGELOG,
+  const [dynamicNotes, setDynamicNotes] = useState<{ version: string; fecha: string; novedades: NovedadItem[] }>(() => {
+    const cached = updateService.getCachedReleaseNotes();
+    return {
+      version: cached?.version || '',
+      fecha: cached?.fecha ? updateService.formatSpanishDate(cached.fecha) : '',
+      novedades: cached?.novedades || [],
+    };
   });
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch('novedades.json', { cache: 'no-store' })
+    const cached = updateService.getCachedReleaseNotes();
+    if (cached) {
+      setDynamicNotes({
+        version: cached.version,
+        fecha: updateService.formatSpanishDate(cached.fecha),
+        novedades: cached.novedades,
+      });
+    }
+    updateService
+      .checkForUpdates()
       .then((res) => {
-        if (!res.ok) throw new Error('No se pudo cargar novedades.json');
-        return res.json();
-      })
-      .then((data) => {
-        if (data && Array.isArray(data.cambios)) {
-          const list = data.cambios.map((c: any) => {
-            const raw = c.titulo ? `${c.titulo}: ${c.texto}` : c.texto || '';
-            return raw.replace(/Versi[oó]n\s+[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `Versión ${CURRENT_APP_VERSION}`);
-          }).filter(Boolean);
+        if (!res.error) {
           setDynamicNotes({
-            fecha: typeof data.fecha === 'string' ? data.fecha : CURRENT_RELEASE_DATE,
-            cambios: list.length > 0 ? list : ['Mejoras de estabilidad y rendimiento'],
+            version: res.serverVersion || res.latestVersion,
+            fecha: res.releaseDate || updateService.formatSpanishDate(res.fecha),
+            novedades: res.novedades || [],
           });
         }
       })
@@ -64,17 +70,24 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
 
   if (!isOpen) return null;
 
-  const targetVersion = viewNotesOnly 
-    ? CURRENT_APP_VERSION 
-    : (updateInfo?.latestVersion || CURRENT_APP_VERSION);
+  const targetVersion = viewNotesOnly
+    ? (dynamicNotes.version || CURRENT_APP_VERSION)
+    : (updateInfo?.latestVersion || dynamicNotes.version || CURRENT_APP_VERSION);
 
-  const releaseDate = viewNotesOnly 
-    ? (dynamicNotes.fecha || CURRENT_RELEASE_DATE)
-    : (updateInfo?.releaseDate || dynamicNotes.fecha || CURRENT_RELEASE_DATE);
+  const releaseDate = viewNotesOnly
+    ? dynamicNotes.fecha
+    : (updateInfo?.releaseDate || updateService.formatSpanishDate(updateInfo?.fecha) || dynamicNotes.fecha);
 
-  const changelog = viewNotesOnly
-    ? (dynamicNotes.cambios.length > 0 ? dynamicNotes.cambios : CURRENT_CHANGELOG)
-    : (updateInfo?.changelog && updateInfo.changelog.length > 0 ? updateInfo.changelog : dynamicNotes.cambios);
+  const resolvedNovedades: NovedadItem[] = viewNotesOnly
+    ? dynamicNotes.novedades
+    : (updateInfo?.novedades && updateInfo.novedades.length > 0
+        ? updateInfo.novedades
+        : dynamicNotes.novedades);
+
+  const changelog: string[] =
+    resolvedNovedades.length > 0
+      ? resolvedNovedades.map((n) => (n.titulo ? `${n.titulo}: ${n.descripcion}` : n.descripcion))
+      : ['Sin novedades disponibles'];
 
   const handleApplyUpdate = async () => {
     setIsApplying(true);

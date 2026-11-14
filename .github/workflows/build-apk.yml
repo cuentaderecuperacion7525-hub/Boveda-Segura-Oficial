@@ -101,11 +101,15 @@ jobs:
           name: app-debug
           path: Boveda-Calculadora.apk
 
+      - name: Leer versión desde version.json
+        id: ver
+        run: echo "v=$(jq -r .version public/version.json)" >> $GITHUB_OUTPUT
+
       - name: Publicar Release oficial en GitHub
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.bump.outputs.tag }}
-          name: Versión ${{ steps.bump.outputs.version }} - Mi Bóveda
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Versión ${{ steps.ver.outputs.v }}
           body: |
             Actualización automática v${{ steps.bump.outputs.version }} (compilación ${{ steps.bump.outputs.build_number }}) firmada con la clave permanente para actualizar en 1 clic sin perder datos.
           files: |

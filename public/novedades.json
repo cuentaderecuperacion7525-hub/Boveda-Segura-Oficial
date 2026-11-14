@@ -1,25 +1,44 @@
 {
-  "fecha": "14 de noviembre de 2026",
+  "fecha": "2026-11-14",
+  "releaseDate": "14 de noviembre de 2026",
+  "novedades": [
+    {
+      "titulo": "Bloqueo automático inteligente",
+      "descripcion": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable."
+    },
+    {
+      "titulo": "Restauración de copias protegida",
+      "descripcion": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos."
+    },
+    {
+      "titulo": "Pantalla Recupera tu PIN optimizada",
+      "descripcion": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles."
+    },
+    {
+      "titulo": "Novedades dinámicas desde GitHub",
+      "descripcion": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión."
+    }
+  ],
   "cambios": [
     {
-      "titulo": "Actualización v1.0.16",
-      "texto": "Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic."
+      "titulo": "Bloqueo automático inteligente",
+      "texto": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable.",
+      "descripcion": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable."
     },
     {
-      "titulo": "Cifrado militar local",
-      "texto": "Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones."
+      "titulo": "Restauración de copias protegida",
+      "texto": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos.",
+      "descripcion": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos."
     },
     {
-      "titulo": "Visor de documentos PDF",
-      "texto": "Renderizado local por canvas con desplazamiento continuo y carga perezosa."
+      "titulo": "Pantalla Recupera tu PIN optimizada",
+      "texto": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles.",
+      "descripcion": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles."
     },
     {
-      "titulo": "Reproductor de audio",
-      "texto": "Sonido de fondo, marquesina continua y soporte de carátulas ID3."
-    },
-    {
-      "titulo": "Carpeta con PIN extra",
-      "texto": "Nueva carpeta segura protegida por un PIN independiente de 4 dígitos."
+      "titulo": "Novedades dinámicas desde GitHub",
+      "texto": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión.",
+      "descripcion": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión."
     }
   ]
 }

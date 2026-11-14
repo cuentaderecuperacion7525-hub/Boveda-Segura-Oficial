@@ -1,5 +1,4 @@
-- Actualización v1.0.16: Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic.
-- Cifrado militar local: Algoritmo AES-256 para fotos, videos, audios, documentos y aplicaciones.
-- Visor de documentos PDF: Renderizado local por canvas con desplazamiento continuo y carga perezosa.
-- Reproductor de audio: Sonido de fondo, marquesina continua y soporte de carátulas ID3.
-- Carpeta con PIN extra: Nueva carpeta segura protegida por un PIN independiente de 4 dígitos.
+- Bloqueo automático inteligente: Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable.
+- Restauración de copias protegida: Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos.
+- Pantalla Recupera tu PIN optimizada: Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles.
+- Novedades dinámicas desde GitHub: Historial de cambios sincronizado en vivo con cada release y caché sin conexión.

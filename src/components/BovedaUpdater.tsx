@@ -7,14 +7,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
-import { updateService } from '../services/updateService';
+import { updateService, NovedadItem } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER } from '../version';
 const APP_VERSION = CURRENT_APP_VERSION;
-
-interface CambioNovedad {
-  titulo?: string;
-  texto: string;
-}
 
 interface BovedaUpdaterProps {
   onOpenChangelog?: () => void;
@@ -23,6 +18,7 @@ interface BovedaUpdaterProps {
 
 export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const cachedCheck = updateService.getLastCheckResult();
+  const cachedNotes = updateService.getCachedReleaseNotes();
   const isCachedTrulyNew = Boolean(cachedCheck?.hasUpdate);
   const [updateAvailable, setUpdateAvailable] = useState<boolean>(isCachedTrulyNew);
   const [downloadUrl, setDownloadUrl] = useState<string>(() => cachedCheck?.downloadUrl || '');
@@ -37,8 +33,25 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const [downloadSize, setDownloadSize] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [isNative, setIsNative] = useState<boolean>(false);
-  const [cambiosNovedades, setCambiosNovedades] = useState<CambioNovedad[]>([]);
-  const [activeReleaseDate, setActiveReleaseDate] = useState<string>('');
+  const [novedadesList, setNovedadesList] = useState<NovedadItem[]>(() => {
+    if (cachedCheck?.novedades && cachedCheck.novedades.length > 0) {
+      return cachedCheck.novedades;
+    }
+    return cachedNotes?.novedades || [];
+  });
+  const [notesVersion, setNotesVersion] = useState<string>(() => {
+    return (
+      cachedCheck?.serverVersion ||
+      cachedCheck?.latestVersion ||
+      cachedNotes?.version ||
+      ''
+    );
+  });
+  const [activeReleaseDate, setActiveReleaseDate] = useState<string>(() => {
+    if (cachedCheck?.releaseDate) return cachedCheck.releaseDate;
+    if (cachedNotes?.fecha) return updateService.formatSpanishDate(cachedNotes.fecha);
+    return '';
+  });
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
 
   const LAST_CHECK_TS_KEY = 'vault_last_update_check';
@@ -101,24 +114,16 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     setIsNative(Capacitor.isNativePlatform());
   }, []);
 
-  useEffect(() => {
-    fetch("novedades.json", { cache: "no-store" })
-      .then((res) => {
-        if (!res.ok) throw new Error("No se pudo cargar novedades.json");
-        return res.json();
-      })
-      .then((data) => {
-        if (data && typeof data.fecha === "string") {
-          setActiveReleaseDate((prev) => prev || data.fecha);
-        }
-        if (data && Array.isArray(data.cambios) && data.cambios.length > 0) {
-          setCambiosNovedades((prev) => (prev.length > 0 ? prev : data.cambios));
-        }
-      })
-      .catch(() => {});
+  const aplicarNovedadesDesdeCache = useCallback(() => {
+    const saved = updateService.getCachedReleaseNotes();
+    if (saved) {
+      if (saved.version) setNotesVersion(saved.version);
+      if (saved.fecha) setActiveReleaseDate(updateService.formatSpanishDate(saved.fecha));
+      setNovedadesList(saved.novedades || []);
+    }
   }, []);
 
-  // Lógica unificada de verificación de versiones
+  // Lógica unificada de verificación de versiones y descarga de version.json
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
     setStatus('');
@@ -141,7 +146,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         setCurrentInstalledCode(CURRENT_BUILD_NUMBER);
       }
 
-      // 2. Comprobar a través del updateService
+      // 2. Descargar version.json desde GitHub Releases (o fallback) mediante updateService
       const res = await updateService.checkForUpdates(true);
 
       setServerVersionName(res.latestVersion);
@@ -151,6 +156,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
 
       if (res.error) {
         setUpdateAvailable(false);
+        aplicarNovedadesDesdeCache();
         if (esManual) {
           setStatus(res.error);
         }
@@ -163,26 +169,19 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       } catch {}
       setLastCheckTimestamp(checkedAt);
 
+      if (res.serverVersion || res.latestVersion) {
+        setNotesVersion(res.serverVersion || res.latestVersion);
+      }
+      if (res.releaseDate || res.fecha) {
+        setActiveReleaseDate(res.releaseDate || updateService.formatSpanishDate(res.fecha));
+      }
+      if (Array.isArray(res.novedades)) {
+        setNovedadesList(res.novedades);
+      }
+
       if (res.hasUpdate) {
         setUpdateAvailable(true);
         setDownloadUrl(res.downloadUrl || '');
-        if (res.releaseDate) {
-          setActiveReleaseDate(res.releaseDate);
-        }
-        if (Array.isArray(res.changelog) && res.changelog.length > 0) {
-          setCambiosNovedades(
-            res.changelog.map((line) => {
-              const colonIdx = line.indexOf(':');
-              if (colonIdx > 0 && colonIdx < 48) {
-                return {
-                  titulo: line.slice(0, colonIdx).trim(),
-                  texto: line.slice(colonIdx + 1).trim(),
-                };
-              }
-              return { texto: line };
-            })
-          );
-        }
         setStatus('');
       } else {
         setUpdateAvailable(false);
@@ -190,13 +189,14 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       }
     } catch (error: any) {
       setUpdateAvailable(false);
+      aplicarNovedadesDesdeCache();
       if (esManual) {
         setStatus(error?.message || 'No se pudo conectar con el servidor. Revisa tu conexión.');
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [aplicarNovedadesDesdeCache]);
 
   // Comprobación inicial al montar
   useEffect(() => {
@@ -412,48 +412,41 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       </section>
 
       {/* ======================================================== */}
-      {/* SECCIÓN DE NOVEDADES DIRECTA (SIN TARJETAS EXTRA)         */}
+      {/* SECCIÓN DE NOVEDADES DINÁMICAS DESDE version.json        */}
       {/* ======================================================== */}
       <section className="pt-2 space-y-3.5 px-1 pb-16">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-            Novedades v{updateAvailable ? (serverVersionName || installedVersionName) : installedVersionName}
+            {notesVersion ? `Novedades v${notesVersion}` : `Novedades v${installedVersionName}`}
           </h3>
-          <span className="text-xs text-slate-400 font-normal">
-            {activeReleaseDate}
-          </span>
+          {activeReleaseDate && (
+            <span className="text-xs text-slate-400 font-normal shrink-0">
+              {activeReleaseDate}
+            </span>
+          )}
         </div>
 
         <div className="space-y-3 pt-1">
-          {cambiosNovedades.length > 0 ? (
-            cambiosNovedades.map((item, idx) => {
-              const displayVer = updateAvailable ? (serverVersionName || installedVersionName) : installedVersionName;
-              const formattedTexto = item.texto
-                ? item.texto.replace(/Versi[oó]n\s+[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `Versión ${displayVer}`)
-                : '';
-              const formattedTitulo = item.titulo
-                ? item.titulo.replace(/v[0-9]+\.[0-9]+(\.[0-9]+)?/gi, `v${displayVer}`)
-                : '';
-
-              return (
-                <div key={idx} className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
-                  <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
-                  <p className="flex-1">
-                    {formattedTitulo ? (
-                      <>
-                        <strong className="text-white font-semibold">{formattedTitulo}</strong>: {formattedTexto}
-                      </>
-                    ) : (
-                      formattedTexto
-                    )}
-                  </p>
-                </div>
-              );
-            })
+          {novedadesList.length > 0 ? (
+            novedadesList.map((item, idx) => (
+              <div key={idx} className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
+                <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
+                <p className="flex-1">
+                  {item.titulo ? (
+                    <>
+                      <strong className="text-white font-semibold">{item.titulo}</strong>
+                      {item.descripcion ? `: ${item.descripcion}` : ''}
+                    </>
+                  ) : (
+                    item.descripcion
+                  )}
+                </p>
+              </div>
+            ))
           ) : (
-            <div className="flex items-start gap-3 text-sm text-slate-300 leading-relaxed">
-              <span className="w-2 h-2 rounded-full bg-[#00d2ff] shrink-0 mt-2 shadow-[0_0_8px_rgba(0,210,255,0.7)]" />
-              <p className="flex-1">Mejoras de estabilidad y rendimiento</p>
+            <div className="flex items-start gap-3 text-sm text-slate-400 leading-relaxed">
+              <span className="w-2 h-2 rounded-full bg-slate-600 shrink-0 mt-2" />
+              <p className="flex-1">Sin novedades disponibles</p>
             </div>
           )}
         </div>

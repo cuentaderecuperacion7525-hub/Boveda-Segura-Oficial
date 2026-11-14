@@ -27,7 +27,7 @@ import {
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { registerBackHandler } from '../services/backButtonService';
 import { updateService, UpdateCheckResult } from '../services/updateService';
-import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE } from '../version';
+import { CURRENT_APP_VERSION } from '../version';
 import { UpdateNotificationModal } from './UpdateNotificationModal';
 
 const formatFileSize = (bytes: number): string => {
@@ -1192,7 +1192,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           v{CURRENT_APP_VERSION}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400">Lanzamiento: {CURRENT_RELEASE_DATE}</p>
+                      {(() => {
+                        const dynamicDate =
+                          updateCheckResult?.releaseDate ||
+                          updateService.formatSpanishDate(updateService.getCachedReleaseNotes()?.fecha);
+                        return dynamicDate ? (
+                          <p className="text-[11px] text-slate-400">Lanzamiento: {dynamicDate}</p>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
 
