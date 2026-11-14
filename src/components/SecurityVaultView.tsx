@@ -55,6 +55,11 @@ import { NeonSwitch } from './NeonSwitch';
 import { getAllEncryptedItems, saveEncryptedItems, EncryptedVaultItem } from '../db/vaultDb';
 import { isExtraPinConfigured } from '../services/extraPinFolderService';
 import { ExtraPinModal } from './ExtraPinModal';
+import {
+  AUTO_LOCK_OPTIONS,
+  EXIT_GRACE_OPTIONS,
+  formatAutoLockSummary,
+} from '../services/autoLockService';
 
 interface SecurityVaultViewProps {
   onOpenSettings: () => void;
@@ -67,6 +72,8 @@ interface SecurityVaultViewProps {
   onAutoLockChange?: (mins: number) => void;
   lockOnTabSwitch?: boolean;
   onLockOnTabSwitchChange?: (enabled: boolean) => void;
+  lockOnExitGraceSeconds?: number;
+  onLockOnExitGraceChange?: (secs: number) => void;
 }
 
 /* ==================== BLOQUE DE HISTORIAL (TIPOS Y UTILIDADES) ==================== */
@@ -149,6 +156,8 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
   onAutoLockChange,
   lockOnTabSwitch = true,
   onLockOnTabSwitchChange,
+  lockOnExitGraceSeconds = 0,
+  onLockOnExitGraceChange,
 }) => {
   // Protection toggles
   const [duressPinActive, setDuressPinActive] = useState<boolean>(() => {
@@ -1021,31 +1030,64 @@ export const SecurityVaultView: React.FC<SecurityVaultViewProps> = ({
               onChange={(e) => onAutoLockChange && onAutoLockChange(Number(e.target.value))}
               className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#00e5ff] cursor-pointer shrink-0"
             >
-              <option value={0.5}>30 seg</option>
-              <option value={1}>1 min</option>
-              <option value={2}>2 min</option>
-              <option value={5}>5 min</option>
-              <option value={10}>10 min</option>
-              <option value={0}>Desactivado</option>
+              {AUTO_LOCK_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.shortLabel}
+                </option>
+              ))}
             </select>
           </div>
 
           {/* Bloquear al salir de la app */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0 pr-2">
-              <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
-                <EyeOff className="w-5 h-5" />
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0 pr-2">
+                <div className="w-10 h-10 rounded-xl bg-[#00e5ff]/10 border border-[#00e5ff]/20 flex items-center justify-center text-[#00e5ff] shrink-0">
+                  <EyeOff className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-white">Bloquear al salir de la app</h4>
+                  <p className="text-xs text-slate-400">Protege tu pantalla si sales o minimizas</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-white">Bloquear al salir de la app</h4>
-                <p className="text-xs text-slate-400">Protege tu pantalla si sales o minimizas</p>
-              </div>
+              <NeonSwitch
+                checked={lockOnTabSwitch}
+                onChange={(enabled) => onLockOnTabSwitchChange && onLockOnTabSwitchChange(enabled)}
+                ariaLabel="Bloquear al salir de la app"
+              />
             </div>
-            <NeonSwitch
-              checked={lockOnTabSwitch}
-              onChange={(enabled) => onLockOnTabSwitchChange && onLockOnTabSwitchChange(enabled)}
-              ariaLabel="Bloquear al salir de la app"
-            />
+
+            {lockOnTabSwitch && (
+              <div className="ml-13 flex items-center justify-between gap-3 rounded-2xl bg-slate-900/70 border border-slate-800/80 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-200">Tiempo de gracia al salir</p>
+                  <p className="text-[11px] text-slate-400">
+                    {lockOnExitGraceSeconds === 0
+                      ? 'Se bloquea al instante al minimizar'
+                      : `Permite volver antes de ${lockOnExitGraceSeconds} seg`}
+                  </p>
+                </div>
+                <select
+                  value={lockOnExitGraceSeconds}
+                  onChange={(e) => onLockOnExitGraceChange && onLockOnExitGraceChange(Number(e.target.value))}
+                  aria-label="Tiempo de gracia al salir"
+                  className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#00e5ff] cursor-pointer shrink-0"
+                >
+                  {EXIT_GRACE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.shortLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl bg-[#00e5ff]/[0.06] border border-[#00e5ff]/20 px-3.5 py-2.5 flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-[#00e5ff] shrink-0" />
+            <p className="text-[11px] font-medium text-slate-300 leading-snug">
+              {formatAutoLockSummary(autoLockMinutes, lockOnTabSwitch, lockOnExitGraceSeconds)}
+            </p>
           </div>
 
           {/* Bloqueo al Voltear Boca Abajo (Flip to Lock) */}

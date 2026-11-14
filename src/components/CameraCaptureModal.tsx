@@ -44,6 +44,17 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (isOpen) {
+      (window as any).__isCameraOpen = true;
+    } else {
+      (window as any).__isCameraOpen = false;
+    }
+    return () => {
+      (window as any).__isCameraOpen = false;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isOpen) {
       stopCamera();
       resetCaptures();

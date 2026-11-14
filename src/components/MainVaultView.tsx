@@ -238,6 +238,8 @@ interface MainVaultViewProps {
   onAutoLockChange?: (mins: number) => void;
   lockOnTabSwitch?: boolean;
   onLockOnTabSwitchChange?: (enabled: boolean) => void;
+  lockOnExitGraceSeconds?: number;
+  onLockOnExitGraceChange?: (secs: number) => void;
   onMasterKeyUpdated?: (newKey: CryptoKey, newPin?: string) => void;
   onResetVault?: () => void;
   hasUpdatePending?: boolean;
@@ -254,6 +256,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
   onAutoLockChange,
   lockOnTabSwitch = true,
   onLockOnTabSwitchChange,
+  lockOnExitGraceSeconds = 0,
+  onLockOnExitGraceChange,
   onMasterKeyUpdated,
   onResetVault,
   hasUpdatePending = false,
@@ -1988,6 +1992,8 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           onAutoLockChange={onAutoLockChange || (() => {})}
           lockOnTabSwitch={lockOnTabSwitch}
           onLockOnTabSwitchChange={onLockOnTabSwitchChange || (() => {})}
+          lockOnExitGraceSeconds={lockOnExitGraceSeconds}
+          onLockOnExitGraceChange={onLockOnExitGraceChange || (() => {})}
         />
       ) : activeNavTab === 'settings' ? (
         /* Screen 4: Configuración Tab */

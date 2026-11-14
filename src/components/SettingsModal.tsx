@@ -69,6 +69,10 @@ import {
 } from '../crypto/vaultCrypto';
 import { updateBiometricPinIfEnrolled } from '../services/biometricService';
 import { rebindRecoveryKeyToNewMasterKey } from '../services/recoveryKeyService';
+import {
+  AUTO_LOCK_OPTIONS,
+  EXIT_GRACE_OPTIONS,
+} from '../services/autoLockService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -80,6 +84,8 @@ interface SettingsModalProps {
   onAutoLockChange: (mins: number) => void;
   lockOnTabSwitch: boolean;
   onLockOnTabSwitchChange: (enabled: boolean) => void;
+  lockOnExitGraceSeconds?: number;
+  onLockOnExitGraceChange?: (secs: number) => void;
   onPhotosUpdated: () => void;
   onResetVault: () => void;
   showToast: (msg: string, type?: 'info' | 'success' | 'alert' | 'error') => void;
@@ -96,6 +102,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onAutoLockChange,
   lockOnTabSwitch,
   onLockOnTabSwitchChange,
+  lockOnExitGraceSeconds = 0,
+  onLockOnExitGraceChange,
   onPhotosUpdated,
   onResetVault,
   showToast,
@@ -855,32 +863,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onChange={(e) => onAutoLockChange(Number(e.target.value))}
                       className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500"
                     >
-                      <option value={0.5}>30 segundos</option>
-                      <option value={1}>1 minuto</option>
-                      <option value={2}>2 minutos</option>
-                      <option value={5}>5 minutos</option>
-                      <option value={10}>10 minutos</option>
-                      <option value={0}>Desactivado</option>
+                      {AUTO_LOCK_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
-                  <div className="border-t border-slate-800/80 pt-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <EyeOff className="w-4 h-4 text-indigo-400" />
-                      <div>
-                        <p className="text-xs font-semibold text-slate-200">Bloquear al salir de la app</p>
-                        <p className="text-[11px] text-slate-400">Protege tu pantalla si sales o minimizas</p>
+                  <div className="border-t border-slate-800/80 pt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <EyeOff className="w-4 h-4 text-indigo-400" />
+                        <div>
+                          <p className="text-xs font-semibold text-slate-200">Bloquear al salir de la app</p>
+                          <p className="text-[11px] text-slate-400">Protege tu pantalla si sales o minimizas</p>
+                        </div>
                       </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={lockOnTabSwitch}
+                          onChange={(e) => onLockOnTabSwitchChange(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={lockOnTabSwitch}
-                        onChange={(e) => onLockOnTabSwitchChange(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
+
+                    {lockOnTabSwitch && onLockOnExitGraceChange && (
+                      <div className="flex items-center justify-between pl-6 pt-1">
+                        <div>
+                          <p className="text-xs font-medium text-slate-300">Tiempo de gracia al salir</p>
+                          <p className="text-[11px] text-slate-500">Margen antes de exigir PIN al volver</p>
+                        </div>
+                        <select
+                          value={lockOnExitGraceSeconds}
+                          onChange={(e) => onLockOnExitGraceChange(Number(e.target.value))}
+                          className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500"
+                        >
+                          {EXIT_GRACE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -127,6 +127,10 @@ function getRelyingPartyId(): string {
  * Enrolls the device's biometric fingerprint and encrypts the vault PIN with a dedicated wrapping key.
  */
 export async function enrollBiometrics(pin: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    (window as any).__isBiometricPromptActive = true;
+  }
+  try {
   const isNative = await isNativeBiometricPluginAvailable();
 
   // 1. If Native Android Biometric plugin is present
@@ -301,6 +305,12 @@ export async function enrollBiometrics(pin: string): Promise<boolean> {
   localStorage.setItem(BIO_ENABLED_KEY, 'true');
 
   return true;
+  } finally {
+    if (typeof window !== 'undefined') {
+      (window as any).__isBiometricPromptActive = false;
+      (window as any).__lastBiometricPromptFinishedAt = Date.now();
+    }
+  }
 }
 
 // Mutex to strictly prevent concurrent or duplicated biometric authentication calls
@@ -331,6 +341,9 @@ export async function authenticateWithBiometrics(forceFresh = false): Promise<st
   currentBioAbortController = abortCtrl;
 
   activeBiometricAuthPromise = (async () => {
+    if (typeof window !== 'undefined') {
+      (window as any).__isBiometricPromptActive = true;
+    }
     try {
       if (!isBiometricsEnrolled()) {
         throw new Error('La huella digital aún no está registrada en esta bóveda.');
@@ -463,6 +476,10 @@ export async function authenticateWithBiometrics(forceFresh = false): Promise<st
 
       return new TextDecoder().decode(decryptedBytes);
     } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__isBiometricPromptActive = false;
+        (window as any).__lastBiometricPromptFinishedAt = Date.now();
+      }
       // Clear mutex and controller on finish
       if (currentBioAbortController === abortCtrl) {
         currentBioAbortController = null;

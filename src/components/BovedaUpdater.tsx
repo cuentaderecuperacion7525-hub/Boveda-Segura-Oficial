@@ -41,13 +41,61 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   const [activeReleaseDate, setActiveReleaseDate] = useState<string>('');
   const [installCompleted, setInstallCompleted] = useState<boolean>(false);
 
-  // Formatear hora de última comprobación estilo "03:08 p. m."
-  const getFormattedTime = () => {
-    const now = new Date();
-    return now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const LAST_CHECK_TS_KEY = 'vault_last_update_check';
+
+  const getSavedCheckTimestamp = (): number | null => {
+    try {
+      const saved = localStorage.getItem(LAST_CHECK_TS_KEY);
+      if (saved) {
+        const parsed = Number(saved);
+        if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+      }
+    } catch {}
+    return null;
   };
 
-  const [lastCheckTime, setLastCheckTime] = useState<string>(() => getFormattedTime());
+  // Formatear fecha y hora de última comprobación en 24 hrs:
+  // "Hoy, 15:08" | "Ayer, 15:08" | "12 de noviembre 2026, 15:08"
+  const formatLastCheckTimestamp = (ts: number | null): string => {
+    if (!ts) return 'Aún sin comprobar';
+    const date = new Date(ts);
+    const now = new Date();
+
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const diffDays = Math.round((startOfToday - startOfTarget) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return `Hoy, ${timeStr}`;
+    }
+    if (diffDays === 1) {
+      return `Ayer, ${timeStr}`;
+    }
+
+    const months = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+    return `${date.getDate()} de ${months[date.getMonth()]} ${date.getFullYear()}, ${timeStr}`;
+  };
+
+  const [lastCheckTimestamp, setLastCheckTimestamp] = useState<number | null>(() =>
+    getSavedCheckTimestamp()
+  );
 
   useEffect(() => {
     setIsNative(Capacitor.isNativePlatform());
@@ -100,7 +148,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       if (res.buildNumber) {
         setServerVersionCode(res.buildNumber);
       }
-      setLastCheckTime(getFormattedTime());
 
       if (res.error) {
         setUpdateAvailable(false);
@@ -109,6 +156,12 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         }
         return;
       }
+
+      const checkedAt = Date.now();
+      try {
+        localStorage.setItem(LAST_CHECK_TS_KEY, String(checkedAt));
+      } catch {}
+      setLastCheckTimestamp(checkedAt);
 
       if (res.hasUpdate) {
         setUpdateAvailable(true);
@@ -137,7 +190,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       }
     } catch (error: any) {
       setUpdateAvailable(false);
-      setLastCheckTime(getFormattedTime());
       if (esManual) {
         setStatus(error?.message || 'No se pudo conectar con el servidor. Revisa tu conexión.');
       }
@@ -165,6 +217,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     let progressTimer: any = null;
     let receivedRealProgress = false;
     let didFinish = false;
+    (window as any).__isInstallingUpdate = true;
 
     try {
       listenerHandle = await onDownloadProgress((p) => {
@@ -235,6 +288,13 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       if (listenerHandle && typeof listenerHandle.remove === 'function') {
         listenerHandle.remove();
       }
+      if (didFinish) {
+        setTimeout(() => {
+          (window as any).__isInstallingUpdate = false;
+        }, 5000);
+      } else {
+        (window as any).__isInstallingUpdate = false;
+      }
       if (!didFinish) {
         setTimeout(() => {
           setIsInstalling(false);
@@ -294,7 +354,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
 
         {/* Texto de última comprobación */}
         <p className="text-xs text-slate-400 text-center mb-5 font-normal relative z-10 tabular-nums">
-          Última comprobación · {lastCheckTime}
+          Última comprobación · {formatLastCheckTimestamp(lastCheckTimestamp)}
         </p>
 
         {/* Estado en curso de instalación si aplica */}
