@@ -4,16 +4,24 @@
  * ============================================================================
  * Envía el código de 6 dígitos + enlace de confirmación (vigencia 5 minutos,
  * un solo uso, cancelación automática de códigos anteriores) a CUALQUIER correo
- * (Gmail, Hotmail, Outlook, Yahoo, etc.) directamente desde tu cuenta de Google,
- * 24/7, sin contraseñas de aplicación ni servidores externos.
+ * (Gmail, Hotmail, Outlook, Yahoo, etc.) 24/7 sin servidores externos.
  *
- * INSTRUCCIONES DE DESPLIEGUE (2 minutos):
- * 1. Abre https://script.google.com y haz clic en "Nuevo proyecto".
- * 2. Borra el contenido inicial y pega TODO este archivo. Guarda (Ctrl+S).
- * 3. Haz clic en "Implementar" -> "Nueva implementación" -> tipo "Aplicación web".
- *    - Ejecutar como: "Yo" (tu cuenta de Google).
- *    - Quién tiene acceso: "Cualquier usuario".
- * 4. Autoriza los permisos de envío de correo y copia la URL que termina en /exec.
+ * PRIORIDAD DE ENVÍO (para evitar retrasos de 20-30 min en Hotmail/Outlook):
+ * 1. Brevo API (si configuras BREVO_API_KEY + BREVO_SENDER_EMAIL en
+ *    Configuración del proyecto -> Propiedades de secuencia de comandos).
+ *    Entrega en 2-4 segundos a Hotmail/Outlook/Yahoo/Gmail (300/día gratis).
+ * 2. Resend API (si configuras RESEND_API_KEY + RESEND_FROM_EMAIL con dominio propio).
+ * 3. GmailApp.sendEmail (envía directo desde tu buzón Gmail autenticado,
+ *    mucho más rápido y confiable que el pool compartido de MailApp).
+ * 4. MailApp.sendEmail (respaldo automático final).
+ *
+ * CÓMO ACTUALIZAR CONSERVANDO TU MISMA URL (/exec):
+ * 1. Abre tu proyecto en https://script.google.com y reemplaza TODO el código.
+ * 2. Guarda (Ctrl+S).
+ * 3. Haz clic en "Implementar" -> "Administrar implementaciones" -> ícono del lápiz (Editar).
+ * 4. En "Versión", selecciona "Nueva versión" y pulsa "Implementar".
+ * 5. Si pide autorizar permisos de Gmail, acéptalos (Configuración avanzada -> Ir a...).
+ *    ¡Listo! Tu URL /exec seguirá siendo exactamente la misma y tu APK no necesita recompilarse.
  * ============================================================================
  */
 
@@ -35,6 +43,30 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function getScriptConfig() {
+  var props = PropertiesService.getScriptProperties();
+  var brevoApiKey = String(props.getProperty('BREVO_API_KEY') || '').trim();
+  var brevoSenderEmail = String(props.getProperty('BREVO_SENDER_EMAIL') || '').trim();
+  if (!brevoSenderEmail) {
+    try {
+      brevoSenderEmail = String(Session.getActiveUser().getEmail() || '').trim();
+    } catch (e) {}
+  }
+  var senderName = String(props.getProperty('BREVO_SENDER_NAME') || 'Mi Bóveda').trim() || 'Mi Bóveda';
+  var resendApiKey = String(props.getProperty('RESEND_API_KEY') || '').trim();
+  var resendFromEmail = String(props.getProperty('RESEND_FROM_EMAIL') || '').trim();
+  var confirmBaseUrl = String(props.getProperty('CONFIRM_PAGE_BASE_URL') || '').trim();
+
+  return {
+    brevoApiKey: brevoApiKey,
+    brevoSenderEmail: brevoSenderEmail,
+    senderName: senderName,
+    resendApiKey: resendApiKey,
+    resendFromEmail: resendFromEmail,
+    confirmBaseUrl: confirmBaseUrl,
+  };
 }
 
 function getTokenRecord(token) {
@@ -132,6 +164,146 @@ function supersedePreviousTokenForEmail(email, newToken) {
   } catch (e) {}
 }
 
+function sendViaBrevo(cfg, toEmail, subject, textBody, htmlBody) {
+  if (!cfg.brevoApiKey || !cfg.brevoSenderEmail || cfg.brevoSenderEmail.indexOf('@') === -1) {
+    return { ok: false, skipped: true };
+  }
+  try {
+    var res = UrlFetchApp.fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'api-key': cfg.brevoApiKey,
+        accept: 'application/json',
+      },
+      payload: JSON.stringify({
+        sender: {
+          name: cfg.senderName || 'Mi Bóveda',
+          email: cfg.brevoSenderEmail,
+        },
+        to: [{ email: toEmail }],
+        subject: subject,
+        textContent: textBody,
+        htmlContent: htmlBody,
+      }),
+      muteHttpExceptions: true,
+    });
+    var code = res.getResponseCode();
+    if (code >= 200 && code < 300) {
+      return { ok: true, provider: 'brevo' };
+    }
+    return { ok: false, error: 'Brevo HTTP ' + code + ': ' + res.getContentText() };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : 'Brevo fetch error' };
+  }
+}
+
+function sendViaResend(cfg, toEmail, subject, textBody, htmlBody) {
+  if (
+    !cfg.resendApiKey ||
+    cfg.resendApiKey.indexOf('re_') !== 0 ||
+    !cfg.resendFromEmail ||
+    cfg.resendFromEmail.indexOf('onboarding@resend.dev') !== -1
+  ) {
+    return { ok: false, skipped: true };
+  }
+  try {
+    var res = UrlFetchApp.fetch('https://api.resend.com/emails', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: 'Bearer ' + cfg.resendApiKey,
+      },
+      payload: JSON.stringify({
+        from: cfg.resendFromEmail,
+        to: [toEmail],
+        subject: subject,
+        text: textBody,
+        html: htmlBody,
+      }),
+      muteHttpExceptions: true,
+    });
+    var code = res.getResponseCode();
+    if (code >= 200 && code < 300) {
+      return { ok: true, provider: 'resend' };
+    }
+    return { ok: false, error: 'Resend HTTP ' + code + ': ' + res.getContentText() };
+  } catch (err) {
+    return { ok: false, error: err && err.message ? err.message : 'Resend fetch error' };
+  }
+}
+
+function sendEmailFastestAvailable(toEmail, subject, textBody, htmlBody) {
+  var cfg = getScriptConfig();
+  var errors = [];
+
+  // 1. Brevo Transactional API (2-4s a Hotmail/Outlook/Yahoo/Gmail)
+  var brevoRes = sendViaBrevo(cfg, toEmail, subject, textBody, htmlBody);
+  if (brevoRes.ok) return brevoRes;
+  if (brevoRes.error) errors.push(brevoRes.error);
+
+  // 2. Resend API con dominio propio verificado
+  var resendRes = sendViaResend(cfg, toEmail, subject, textBody, htmlBody);
+  if (resendRes.ok) return resendRes;
+  if (resendRes.error) errors.push(resendRes.error);
+
+  // 3. GmailApp (envío directo por tu buzón Gmail autenticado, evita el pool compartido de MailApp)
+  try {
+    GmailApp.sendEmail(toEmail, subject, textBody, {
+      htmlBody: htmlBody,
+      name: 'Mi Bóveda',
+    });
+    return { ok: true, provider: 'gmail_app' };
+  } catch (gmailErr) {
+    if (gmailErr && gmailErr.message) errors.push('GmailApp: ' + gmailErr.message);
+  }
+
+  // 4. Respaldo final con MailApp
+  var remainingQuota = 1;
+  try {
+    remainingQuota = MailApp.getRemainingDailyQuota();
+  } catch (qErr) {}
+  if (remainingQuota <= 0) {
+    return {
+      ok: false,
+      quotaExceeded: true,
+      error: 'Cuota diaria de envío de Google Apps Script agotada.',
+    };
+  }
+
+  try {
+    MailApp.sendEmail({
+      to: toEmail,
+      subject: subject,
+      body: textBody,
+      htmlBody: htmlBody,
+      name: 'Mi Bóveda',
+    });
+    return { ok: true, provider: 'mail_app' };
+  } catch (mailErr) {
+    if (mailErr && mailErr.message) errors.push('MailApp: ' + mailErr.message);
+    return { ok: false, error: errors.join(' | ') || 'No se pudo enviar el correo.' };
+  }
+}
+
+/**
+ * Ejecuta esta función una vez desde el editor de Apps Script si quieres
+ * autorizar los permisos de envío de GmailApp antes de publicar la nueva versión.
+ */
+function probarPermisosCorreo() {
+  return {
+    quota: MailApp.getRemainingDailyQuota(),
+    gmailOk: typeof GmailApp !== 'undefined',
+    cfg: (function () {
+      var c = getScriptConfig();
+      return {
+        brevoConfigured: Boolean(c.brevoApiKey && c.brevoSenderEmail),
+        resendConfigured: Boolean(c.resendApiKey && c.resendFromEmail),
+      };
+    })(),
+  };
+}
+
 function buildConfirmationHtmlPage(opts) {
   var isOk = Boolean(opts.ok);
   var bgIcon = isOk ? '#dcfce7' : '#fee2e2';
@@ -187,7 +359,24 @@ function doGet(e) {
     try {
       quota = MailApp.getRemainingDailyQuota();
     } catch (qErr) {}
-    return jsonResponse({ ok: true, service: 'mi-boveda-email-bridge', active: true, remainingQuota: quota });
+    var cfg = getScriptConfig();
+    return jsonResponse({
+      ok: true,
+      service: 'mi-boveda-email-bridge',
+      active: true,
+      remainingQuota: quota,
+      providers: {
+        brevo: Boolean(cfg.brevoApiKey && cfg.brevoSenderEmail),
+        resend: Boolean(
+          cfg.resendApiKey &&
+            cfg.resendApiKey.indexOf('re_') === 0 &&
+            cfg.resendFromEmail &&
+            cfg.resendFromEmail.indexOf('onboarding@resend.dev') === -1
+        ),
+        gmailApp: typeof GmailApp !== 'undefined',
+        mailApp: true,
+      },
+    });
   }
 
   if (action === 'status') {
@@ -390,9 +579,11 @@ function doPost(e) {
     cleanupOldTokenProperties();
     supersedePreviousTokenForEmail(email, token);
 
+    var cfg = getScriptConfig();
     var serviceUrl = ScriptApp.getService().getUrl();
-    var confirmLink =
-      serviceUrl + '?action=confirm&token=' + encodeURIComponent(token);
+    var confirmLink = cfg.confirmBaseUrl
+      ? cfg.confirmBaseUrl.replace(/\/$/, '') + '?token=' + encodeURIComponent(token)
+      : serviceUrl + '?action=confirm&token=' + encodeURIComponent(token);
 
     var record = {
       token: token,
@@ -417,7 +608,7 @@ function doPost(e) {
       ',\n\nTu código de verificación de 6 dígitos para Mi Bóveda es:\n\n' +
       pin +
       '\n\nEste código es de un solo uso y vence en 5 minutos.\n\n' +
-      '¿Prefieres confirmar directamente con enlace? Abre: ' +
+      'Confirmar con enlace: ' +
       confirmLink +
       '\n\nSaludos,\nMi Bóveda';
 
@@ -440,26 +631,15 @@ function doPost(e) {
       '" style="display: inline-block; padding: 10px 18px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: bold;">Confirmar cuenta tocando este enlace</a>' +
       '</div></div>';
 
-    var remainingQuota = 1;
-    try {
-      remainingQuota = MailApp.getRemainingDailyQuota();
-    } catch (qErr) {}
-    if (remainingQuota <= 0) {
+    var sendResult = sendEmailFastestAvailable(email, subject, textBody, htmlBody);
+    if (!sendResult.ok) {
       return jsonResponse({
         ok: false,
         success: false,
-        quotaExceeded: true,
-        error: 'Cuota diaria de envío de Google Apps Script agotada.',
+        quotaExceeded: Boolean(sendResult.quotaExceeded),
+        error: sendResult.error || 'No se pudo enviar el correo de verificación.',
       });
     }
-
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: textBody,
-      htmlBody: htmlBody,
-      name: 'Mi Bóveda',
-    });
 
     syncTokenToFirestoreBestEffort(record);
 
@@ -467,6 +647,7 @@ function doPost(e) {
       ok: true,
       success: true,
       delivered: true,
+      provider: sendResult.provider,
       targetEmail: email,
       token: token,
       confirmLink: confirmLink,

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: boveda-segura-correo
+    runtime: node
+    plan: free
+    buildCommand: npm install --legacy-peer-deps
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_PASS
+        sync: false

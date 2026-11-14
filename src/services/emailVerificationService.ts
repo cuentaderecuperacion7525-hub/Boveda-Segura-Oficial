@@ -65,8 +65,20 @@ function isNativeOrRemoteClient(): boolean {
   return false;
 }
 
+function getCustomApiBaseUrl(): string {
+  const customApi = String(import.meta.env.VITE_API_BASE_URL || '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .trim()
+    .replace(/\/$/, '');
+  if (/^https?:\/\//i.test(customApi)) {
+    return customApi;
+  }
+  return '';
+}
+
 function getApiEndpoints(path: string): string[] {
-  const customApi = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+  const customApi = getCustomApiBaseUrl();
   if (isNativeOrRemoteClient()) {
     return Array.from(
       new Set([
@@ -76,7 +88,7 @@ function getApiEndpoints(path: string): string[] {
       ].filter(Boolean))
     );
   }
-  return [path];
+  return Array.from(new Set([customApi ? `${customApi}${path}` : '', path].filter(Boolean)));
 }
 
 function getLocalSessionKey(email: string): string {
@@ -197,7 +209,33 @@ export async function checkEmailConfirmationStatus(
 
   if (!token) return { confirmed: false };
 
-  // 1. Consultar estado en Google Apps Script (Opción A, funciona 24/7 desde APK y Web)
+  // 0. Si hay servidor público propio configurado (VITE_API_BASE_URL), consultarlo primero
+  const customApiBase = getCustomApiBaseUrl();
+  if (customApiBase) {
+    try {
+      const res = await fetch(
+        `${customApiBase}/api/estado-confirmacion?correo=${encodeURIComponent(cleanEmail)}&token=${encodeURIComponent(token)}`,
+        { method: 'GET', cache: 'no-store' }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.superseded) return { confirmed: false, superseded: true };
+        if (data?.expired) return { confirmed: false, expired: true };
+        if (data?.confirmado) {
+          if (localSession) {
+            saveLocalSession({ ...localSession, used: true });
+          }
+          return {
+            confirmed: true,
+            email: data.correo || cleanEmail,
+            firstName: data.nombre,
+          };
+        }
+      }
+    } catch {}
+  }
+
+  // 1. Consultar estado en Google Apps Script (respaldo 24/7 desde APK y Web)
   const appsScriptUrl = getAppsScriptEmailUrl();
   if (appsScriptUrl) {
     try {
@@ -412,8 +450,66 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
 
   let lastError = '';
   let appsScriptAttempted = false;
+  const customApiBase = getCustomApiBaseUrl();
 
-  // 1. Opción A (Principal 24/7 en APK Android y Web): Google Apps Script Web App (soporta URL principal y respaldo)
+  const tryServerSendEndpoint = async (endpoint: string, timeoutMs: number, skipGas: boolean): Promise<SendPinResult | null> => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          firstName: cleanName,
+          token,
+          pin,
+          previousToken,
+          skipAppsScript: skipGas,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers.get('content-type') || '';
+      const data = contentType.includes('application/json')
+        ? await res.json().catch(() => null)
+        : null;
+
+      if (res.ok && data?.success === true && data?.delivered !== false) {
+        return {
+          success: true,
+          delivered: true,
+          targetEmail: cleanEmail,
+          token,
+          magicLink: data.magicLink,
+          expiresInSeconds: 300,
+          message: data.message || `Código de 6 dígitos enviado a ${cleanEmail}`,
+        };
+      }
+
+      if (data?.error) {
+        lastError = String(data.error);
+      }
+    } catch (err: any) {
+      if (!lastError) {
+        lastError = err?.message || 'Error conectando con el servidor de correo';
+      }
+    }
+    return null;
+  };
+
+  // 0. Si el APK/Web tiene configurado un servidor público propio (VITE_API_BASE_URL - Opción 1 con Gmail SMTP),
+  // enviarlo PRIMERO para entrega en 2-4 seg a Hotmail/Outlook/Yahoo/Gmail.
+  if (customApiBase) {
+    const customRes = await tryServerSendEndpoint(`${customApiBase}/api/send-email-pin`, 25000, false);
+    if (customRes) return customRes;
+  }
+
+  // 1. Opción A (Respaldo 24/7 en APK Android y Web): Google Apps Script Web App
   const appsScriptUrls = getAppsScriptEmailUrls();
   const appsScriptUrl = appsScriptUrls[0] || '';
   for (const currentGasUrl of appsScriptUrls) {
@@ -461,65 +557,23 @@ export async function sendEmailPin(email: string, firstName?: string): Promise<S
     }
   }
 
-  // 2. Opción B (Respaldo en servidor para Web / backend público): /api/send-email-pin (Gmail SMTP / Resend)
-  const sendEndpoints = getApiEndpoints('/api/send-email-pin');
+  // 2. Respaldo en servidor local/preview (/api/send-email-pin)
+  const sendEndpoints = getApiEndpoints('/api/send-email-pin').filter(
+    (ep) => !customApiBase || ep !== `${customApiBase}/api/send-email-pin`
+  );
   const serverTimeoutMs = isNativeOrRemoteClient() ? 5000 : 15000;
   for (const endpoint of sendEndpoints) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), serverTimeoutMs);
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: cleanEmail,
-          firstName: cleanName,
-          token,
-          pin,
-          previousToken,
-          skipAppsScript: appsScriptAttempted,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      const contentType = res.headers.get('content-type') || '';
-      const data = contentType.includes('application/json')
-        ? await res.json().catch(() => null)
-        : null;
-
-      if (res.ok && data?.success === true && data?.delivered !== false) {
-        return {
-          success: true,
-          delivered: true,
-          targetEmail: cleanEmail,
-          token,
-          magicLink: data.magicLink,
-          expiresInSeconds: 300,
-          message: data.message || `Código de 6 dígitos enviado a ${cleanEmail}`,
-        };
-      }
-
-      if (data?.error) {
-        lastError = String(data.error);
-      }
-    } catch (err: any) {
-      if (!lastError) {
-        lastError = err?.message || 'Error conectando con el servidor de correo';
-      }
-    }
+    const serverRes = await tryServerSendEndpoint(endpoint, serverTimeoutMs, appsScriptAttempted);
+    if (serverRes) return serverRes;
   }
 
   return {
     success: false,
     delivered: false,
     targetEmail: cleanEmail,
-    error: !appsScriptUrl
+    error: !appsScriptUrl && !customApiBase
       ? lastError ||
-        'Falta configurar la URL de Google Apps Script o las credenciales SMTP/Resend del servidor para enviar el correo.'
+        'Falta configurar la URL del servidor de correo o de Google Apps Script.'
       : lastError || 'No se pudo enviar el correo de verificación. Verifica tu conexión o las credenciales SMTP del servidor.',
   };
 }
@@ -541,6 +595,36 @@ export async function verifyEmailPin(
 
   const localSession = getLocalSession(cleanEmail);
   const token = (explicitToken || localSession?.token || '').trim();
+
+  const customApiBase = getCustomApiBaseUrl();
+  if (customApiBase && token) {
+    try {
+      const vRes = await fetch(`${customApiBase}/api/verify-email-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, pin: cleanPin, token }),
+      });
+      const vData = await vRes.json().catch(() => null);
+      if (vRes.ok && vData?.success) {
+        if (localSession) {
+          saveLocalSession({ ...localSession, used: true });
+        }
+        return {
+          success: true,
+          email: vData.email || cleanEmail,
+          firstName: vData.nombre || localSession?.firstName || 'Usuario',
+          message: vData.message || '¡Código verificado con éxito!',
+        };
+      }
+      if (vRes.status === 400 && vData?.error) {
+        return {
+          success: false,
+          expired: /caducado|expirado/i.test(String(vData.error)),
+          error: String(vData.error),
+        };
+      }
+    } catch {}
+  }
 
   // 1. Verificar contra Google Apps Script si está configurado
   const appsScriptUrl = getAppsScriptEmailUrl();

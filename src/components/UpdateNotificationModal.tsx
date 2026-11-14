@@ -8,11 +8,10 @@ import {
   Calendar,
   Layers,
   Download,
-  ExternalLink,
   AlertCircle
 } from 'lucide-react';
 import { updateService, UpdateCheckResult } from '../services/updateService';
-import { downloadAndInstallApk, onDownloadProgress, openApkInBrowser } from '../services/nativeUpdaterBridge';
+import { downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { CURRENT_APP_VERSION, CURRENT_RELEASE_DATE, CURRENT_CHANGELOG } from '../version';
 
 interface UpdateNotificationModalProps {
@@ -81,17 +80,25 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
     setIsApplying(true);
     setIsComplete(false);
     setInstallError(null);
-    setDownloadPercent(8);
+    setDownloadPercent(2);
     setDownloadStage('Conectando con el servidor y preparando canal seguro...');
 
     let listenerHandle: { remove: () => void } | null = null;
     let progressTimer: any = null;
+    let receivedRealProgress = false;
 
     try {
       listenerHandle = await onDownloadProgress((p) => {
         if (p && typeof p.percent === 'number') {
-          const clamped = Math.min(Math.max(p.percent, 8), 98);
-          setDownloadPercent(clamped);
+          if (!receivedRealProgress) {
+            receivedRealProgress = true;
+            if (progressTimer) {
+              clearInterval(progressTimer);
+              progressTimer = null;
+            }
+          }
+          const clamped = Math.min(Math.max(p.percent, 2), 99);
+          setDownloadPercent((prev) => Math.max(prev, clamped));
           if (p.total > 0) {
             const loadedMb = (p.loaded / (1024 * 1024)).toFixed(1);
             const totalMb = (p.total / (1024 * 1024)).toFixed(1);
@@ -108,26 +115,17 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
       });
 
       progressTimer = setInterval(() => {
-        setDownloadPercent((prev) => {
-          if (prev < 92) {
-            const step = prev < 35 ? 4 : (prev < 70 ? 3 : 1);
-            const next = prev + step;
-            if (next >= 30 && next < 65) {
-              setDownloadStage('Descargando paquete de actualización APK...');
-            } else if (next >= 65 && next < 88) {
-              setDownloadStage('Verificando integridad del archivo...');
-            } else if (next >= 88) {
-              setDownloadStage('Preparando instalador de Android...');
-            }
-            return next;
-          }
-          return prev;
-        });
-      }, 350);
+        if (receivedRealProgress) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          return;
+        }
+        setDownloadPercent((prev) => (prev < 15 ? prev + 1 : prev));
+      }, 450);
 
       if (updateInfo?.downloadUrl) {
         const res = await downloadAndInstallApk(updateInfo.downloadUrl);
-        clearInterval(progressTimer);
+        if (progressTimer) clearInterval(progressTimer);
 
         if (res.needsPermission) {
           setIsApplying(false);
@@ -146,24 +144,14 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
       }
       await updateService.applyUpdate();
     } catch (err: any) {
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
       setIsApplying(false);
       setDownloadPercent(0);
-      setInstallError(err?.message || 'No se pudo completar la instalación automática. Usa la descarga en navegador.');
+      setInstallError(err?.message || 'No se pudo completar la instalación automática. Verifica tu conexión e inténtalo de nuevo.');
     } finally {
       if (listenerHandle && typeof listenerHandle.remove === 'function') {
         listenerHandle.remove();
       }
-    }
-  };
-
-  const handleOpenExternalDownload = async () => {
-    if (!updateInfo?.downloadUrl) return;
-    try {
-      await openApkInBrowser(updateInfo.downloadUrl);
-      setInstallError('Descarga iniciada en el navegador. Abre el APK descargado para instalar.');
-    } catch (err: any) {
-      setInstallError(err?.message || 'No se pudo abrir la descarga externa.');
     }
   };
 
@@ -342,17 +330,6 @@ export const UpdateNotificationModal: React.FC<UpdateNotificationModalProps> = (
               </>
             )}
           </div>
-
-          {!viewNotesOnly && updateInfo?.downloadUrl && !isApplying && (
-            <button
-              type="button"
-              onClick={handleOpenExternalDownload}
-              className="w-full min-h-[44px] py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Descargar APK en navegador</span>
-            </button>
-          )}
         </div>
 
         <p className="text-[10px] text-slate-500 text-center mt-3">

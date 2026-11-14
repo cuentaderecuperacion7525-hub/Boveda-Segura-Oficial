@@ -18566,8 +18566,15 @@ function isNativeOrRemoteClient() {
   }
   return false;
 }
+function getCustomApiBaseUrl() {
+  const customApi = String("").trim().replace(/^["']|["']$/g, "").trim().replace(/\/$/, "");
+  if (/^https?:\/\//i.test(customApi)) {
+    return customApi;
+  }
+  return "";
+}
 function getApiEndpoints(path) {
-  const customApi = String("").trim().replace(/\/$/, "");
+  const customApi = getCustomApiBaseUrl();
   if (isNativeOrRemoteClient()) {
     return Array.from(
       new Set([
@@ -18577,7 +18584,7 @@ function getApiEndpoints(path) {
       ].filter(Boolean))
     );
   }
-  return [path];
+  return Array.from(new Set([customApi ? `${customApi}${path}` : "", path].filter(Boolean)));
 }
 function getLocalSessionKey(email) {
   return `vault_email_session_${email.trim().toLowerCase()}`;
@@ -18637,6 +18644,31 @@ async function checkEmailConfirmationStatus(email, explicitToken) {
   const localSession = getLocalSession(cleanEmail);
   const token = (explicitToken || (localSession == null ? void 0 : localSession.token) || "").trim();
   if (!token) return { confirmed: false };
+  const customApiBase = getCustomApiBaseUrl();
+  if (customApiBase) {
+    try {
+      const res = await fetch(
+        `${customApiBase}/api/estado-confirmacion?correo=${encodeURIComponent(cleanEmail)}&token=${encodeURIComponent(token)}`,
+        { method: "GET", cache: "no-store" }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data == null ? void 0 : data.superseded) return { confirmed: false, superseded: true };
+        if (data == null ? void 0 : data.expired) return { confirmed: false, expired: true };
+        if (data == null ? void 0 : data.confirmado) {
+          if (localSession) {
+            saveLocalSession({ ...localSession, used: true });
+          }
+          return {
+            confirmed: true,
+            email: data.correo || cleanEmail,
+            firstName: data.nombre
+          };
+        }
+      }
+    } catch {
+    }
+  }
   const appsScriptUrl = getAppsScriptEmailUrl();
   if (appsScriptUrl) {
     try {
@@ -18828,6 +18860,54 @@ async function sendEmailPin(email, firstName) {
   });
   let lastError = "";
   let appsScriptAttempted = false;
+  const customApiBase = getCustomApiBaseUrl();
+  const tryServerSendEndpoint = async (endpoint, timeoutMs, skipGas) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          firstName: cleanName,
+          token,
+          pin,
+          previousToken,
+          skipAppsScript: skipGas
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const contentType = res.headers.get("content-type") || "";
+      const data = contentType.includes("application/json") ? await res.json().catch(() => null) : null;
+      if (res.ok && (data == null ? void 0 : data.success) === true && (data == null ? void 0 : data.delivered) !== false) {
+        return {
+          success: true,
+          delivered: true,
+          targetEmail: cleanEmail,
+          token,
+          magicLink: data.magicLink,
+          expiresInSeconds: 300,
+          message: data.message || `Código de 6 dígitos enviado a ${cleanEmail}`
+        };
+      }
+      if (data == null ? void 0 : data.error) {
+        lastError = String(data.error);
+      }
+    } catch (err) {
+      if (!lastError) {
+        lastError = (err == null ? void 0 : err.message) || "Error conectando con el servidor de correo";
+      }
+    }
+    return null;
+  };
+  if (customApiBase) {
+    const customRes = await tryServerSendEndpoint(`${customApiBase}/api/send-email-pin`, 25e3, false);
+    if (customRes) return customRes;
+  }
   const appsScriptUrls = getAppsScriptEmailUrls();
   const appsScriptUrl = appsScriptUrls[0] || "";
   for (const currentGasUrl of appsScriptUrls) {
@@ -18872,55 +18952,19 @@ async function sendEmailPin(email, firstName) {
       lastError = (err == null ? void 0 : err.message) || "Error al conectar con Google Apps Script";
     }
   }
-  const sendEndpoints = getApiEndpoints("/api/send-email-pin");
+  const sendEndpoints = getApiEndpoints("/api/send-email-pin").filter(
+    (ep) => !customApiBase || ep !== `${customApiBase}/api/send-email-pin`
+  );
   const serverTimeoutMs = isNativeOrRemoteClient() ? 5e3 : 15e3;
   for (const endpoint of sendEndpoints) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), serverTimeoutMs);
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email: cleanEmail,
-          firstName: cleanName,
-          token,
-          pin,
-          previousToken,
-          skipAppsScript: appsScriptAttempted
-        }),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      const contentType = res.headers.get("content-type") || "";
-      const data = contentType.includes("application/json") ? await res.json().catch(() => null) : null;
-      if (res.ok && (data == null ? void 0 : data.success) === true && (data == null ? void 0 : data.delivered) !== false) {
-        return {
-          success: true,
-          delivered: true,
-          targetEmail: cleanEmail,
-          token,
-          magicLink: data.magicLink,
-          expiresInSeconds: 300,
-          message: data.message || `Código de 6 dígitos enviado a ${cleanEmail}`
-        };
-      }
-      if (data == null ? void 0 : data.error) {
-        lastError = String(data.error);
-      }
-    } catch (err) {
-      if (!lastError) {
-        lastError = (err == null ? void 0 : err.message) || "Error conectando con el servidor de correo";
-      }
-    }
+    const serverRes = await tryServerSendEndpoint(endpoint, serverTimeoutMs, appsScriptAttempted);
+    if (serverRes) return serverRes;
   }
   return {
     success: false,
     delivered: false,
     targetEmail: cleanEmail,
-    error: !appsScriptUrl ? lastError || "Falta configurar la URL de Google Apps Script o las credenciales SMTP/Resend del servidor para enviar el correo." : lastError || "No se pudo enviar el correo de verificación. Verifica tu conexión o las credenciales SMTP del servidor."
+    error: !appsScriptUrl && !customApiBase ? lastError || "Falta configurar la URL del servidor de correo o de Google Apps Script." : lastError || "No se pudo enviar el correo de verificación. Verifica tu conexión o las credenciales SMTP del servidor."
   };
 }
 async function verifyEmailPin(email, pin, explicitToken) {
@@ -18935,6 +18979,36 @@ async function verifyEmailPin(email, pin, explicitToken) {
   }
   const localSession = getLocalSession(cleanEmail);
   const token = (explicitToken || (localSession == null ? void 0 : localSession.token) || "").trim();
+  const customApiBase = getCustomApiBaseUrl();
+  if (customApiBase && token) {
+    try {
+      const vRes = await fetch(`${customApiBase}/api/verify-email-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail, pin: cleanPin, token })
+      });
+      const vData = await vRes.json().catch(() => null);
+      if (vRes.ok && (vData == null ? void 0 : vData.success)) {
+        if (localSession) {
+          saveLocalSession({ ...localSession, used: true });
+        }
+        return {
+          success: true,
+          email: vData.email || cleanEmail,
+          firstName: vData.nombre || (localSession == null ? void 0 : localSession.firstName) || "Usuario",
+          message: vData.message || "¡Código verificado con éxito!"
+        };
+      }
+      if (vRes.status === 400 && (vData == null ? void 0 : vData.error)) {
+        return {
+          success: false,
+          expired: /caducado|expirado/i.test(String(vData.error)),
+          error: String(vData.error)
+        };
+      }
+    } catch {
+    }
+  }
   const appsScriptUrl = getAppsScriptEmailUrl();
   if (appsScriptUrl && token) {
     try {
@@ -19791,7 +19865,7 @@ const __vitePreload = function preload(baseModule, deps, importerUrl) {
   });
 };
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-DTWbQzT-.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
+  web: () => __vitePreload(() => import("./web-D4zkgocT.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
 });
 const handlers = [];
 let isListenerAttached = false;
@@ -40398,7 +40472,7 @@ const DocumentReader = ({
           setLoadingMessage("Procesando documento Word…");
           if (lowerName.endsWith(".docx") || mimeType.includes("openxmlformats")) {
             try {
-              const mammothModule = await __vitePreload(() => import("./index-_DpD899x.js").then((n2) => n2.i), true ? [] : void 0);
+              const mammothModule = await __vitePreload(() => import("./index-ChtF0XGM.js").then((n2) => n2.i), true ? [] : void 0);
               const mammoth = mammothModule.default || mammothModule;
               const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
               if (!isCancelled) {
@@ -48978,9 +49052,9 @@ const SecurityVaultView = ({
     )
   ] });
 };
-const APP_VERSION$1 = "1.0.18";
+const APP_VERSION$1 = "1.0.20";
 const CURRENT_APP_VERSION = APP_VERSION$1;
-const CURRENT_BUILD_NUMBER = 2018;
+const CURRENT_BUILD_NUMBER = 2020;
 const CURRENT_RELEASE_DATE = "13 de noviembre de 2026";
 const CURRENT_CHANGELOG = [
   "Actualización v1.0.16: Unificación estricta del objetivo de compilación y clave permanente para actualizaciones en 1 clic.",
@@ -49042,22 +49116,6 @@ async function downloadAndInstallApk(apkUrl) {
   } else {
     throw new Error("La instalación automática directa de APK solo está disponible en la app Android instalada.");
   }
-}
-async function openApkInBrowser(apkUrl) {
-  if (!apkUrl) {
-    throw new Error("No hay enlace de descarga disponible");
-  }
-  if (Capacitor.isNativePlatform()) {
-    await UpdaterPlugin.openExternalDownload({ url: apkUrl });
-    return;
-  }
-  const link = document.createElement("a");
-  link.href = apkUrl;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 }
 const OFFICIAL_GITHUB_REPO = "cuentaderecuperacion7525-hub/Boveda-Segura-Oficial";
 const STALE_GITHUB_REPOS = /* @__PURE__ */ new Set([
@@ -49520,15 +49578,23 @@ const UpdateNotificationModal = ({
     setIsApplying(true);
     setIsComplete(false);
     setInstallError(null);
-    setDownloadPercent(8);
+    setDownloadPercent(2);
     setDownloadStage("Conectando con el servidor y preparando canal seguro...");
     let listenerHandle = null;
     let progressTimer = null;
+    let receivedRealProgress = false;
     try {
       listenerHandle = await onDownloadProgress((p2) => {
         if (p2 && typeof p2.percent === "number") {
-          const clamped = Math.min(Math.max(p2.percent, 8), 98);
-          setDownloadPercent(clamped);
+          if (!receivedRealProgress) {
+            receivedRealProgress = true;
+            if (progressTimer) {
+              clearInterval(progressTimer);
+              progressTimer = null;
+            }
+          }
+          const clamped = Math.min(Math.max(p2.percent, 2), 99);
+          setDownloadPercent((prev) => Math.max(prev, clamped));
           if (p2.total > 0) {
             const loadedMb = (p2.loaded / (1024 * 1024)).toFixed(1);
             const totalMb = (p2.total / (1024 * 1024)).toFixed(1);
@@ -49544,25 +49610,16 @@ const UpdateNotificationModal = ({
         }
       });
       progressTimer = setInterval(() => {
-        setDownloadPercent((prev) => {
-          if (prev < 92) {
-            const step = prev < 35 ? 4 : prev < 70 ? 3 : 1;
-            const next = prev + step;
-            if (next >= 30 && next < 65) {
-              setDownloadStage("Descargando paquete de actualización APK...");
-            } else if (next >= 65 && next < 88) {
-              setDownloadStage("Verificando integridad del archivo...");
-            } else if (next >= 88) {
-              setDownloadStage("Preparando instalador de Android...");
-            }
-            return next;
-          }
-          return prev;
-        });
-      }, 350);
+        if (receivedRealProgress) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          return;
+        }
+        setDownloadPercent((prev) => prev < 15 ? prev + 1 : prev);
+      }, 450);
       if (updateInfo == null ? void 0 : updateInfo.downloadUrl) {
         const res = await downloadAndInstallApk(updateInfo.downloadUrl);
-        clearInterval(progressTimer);
+        if (progressTimer) clearInterval(progressTimer);
         if (res.needsPermission) {
           setIsApplying(false);
           setDownloadPercent(0);
@@ -49579,23 +49636,14 @@ const UpdateNotificationModal = ({
       }
       await updateService.applyUpdate();
     } catch (err) {
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
       setIsApplying(false);
       setDownloadPercent(0);
-      setInstallError((err == null ? void 0 : err.message) || "No se pudo completar la instalación automática. Usa la descarga en navegador.");
+      setInstallError((err == null ? void 0 : err.message) || "No se pudo completar la instalación automática. Verifica tu conexión e inténtalo de nuevo.");
     } finally {
       if (listenerHandle && typeof listenerHandle.remove === "function") {
         listenerHandle.remove();
       }
-    }
-  };
-  const handleOpenExternalDownload = async () => {
-    if (!(updateInfo == null ? void 0 : updateInfo.downloadUrl)) return;
-    try {
-      await openApkInBrowser(updateInfo.downloadUrl);
-      setInstallError("Descarga iniciada en el navegador. Abre el APK descargado para instalar.");
-    } catch (err) {
-      setInstallError((err == null ? void 0 : err.message) || "No se pudo abrir la descarga externa.");
     }
   };
   const handleDismiss = () => {
@@ -49688,56 +49736,42 @@ const UpdateNotificationModal = ({
           /* @__PURE__ */ jsxRuntimeExports.jsx(CircleAlert, { className: "w-4 h-4 text-amber-400 shrink-0 mt-0.5" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: installError })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2 pt-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2.5", children: viewNotesOnly ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2 pt-1", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-2.5", children: viewNotesOnly ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            onClick: onClose,
+            className: "w-full min-h-[44px] py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2",
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Entendido" })
+          }
+        ) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
               type: "button",
-              onClick: onClose,
-              className: "w-full min-h-[44px] py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Entendido" })
+              onClick: handleDismiss,
+              disabled: isApplying,
+              className: "flex-1 min-h-[44px] py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors disabled:opacity-50",
+              children: "Más tarde"
             }
-          ) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                type: "button",
-                onClick: handleDismiss,
-                disabled: isApplying,
-                className: "flex-1 min-h-[44px] py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold text-xs transition-colors disabled:opacity-50",
-                children: "Más tarde"
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                type: "button",
-                onClick: handleApplyUpdate,
-                disabled: isApplying,
-                className: "flex-1 min-h-[44px] py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75",
-                children: isApplying ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "w-3.5 h-3.5 animate-spin text-white" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isComplete ? "Instalando..." : "Descargando..." })
-                ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-3.5 h-3.5 text-white" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Actualizar Ahora" })
-                ] })
-              }
-            )
-          ] }) }),
-          !viewNotesOnly && (updateInfo == null ? void 0 : updateInfo.downloadUrl) && !isApplying && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
               type: "button",
-              onClick: handleOpenExternalDownload,
-              className: "w-full min-h-[44px] py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2",
-              children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(ExternalLink, { className: "w-3.5 h-3.5 text-cyan-400" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Descargar APK en navegador" })
-              ]
+              onClick: handleApplyUpdate,
+              disabled: isApplying,
+              className: "flex-1 min-h-[44px] py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-all shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-75",
+              children: isApplying ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "w-3.5 h-3.5 animate-spin text-white" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isComplete ? "Instalando..." : "Descargando..." })
+              ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "w-3.5 h-3.5 text-white" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Actualizar Ahora" })
+              ] })
             }
           )
-        ] }),
+        ] }) }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[10px] text-slate-500 text-center mt-3", children: viewNotesOnly ? "Cifrado permanente AES-GCM 256 bits activo." : "Tus archivos y configuraciones permanecen protegidos durante la actualización." })
       ]
     }
@@ -49864,9 +49898,7 @@ const BovedaUpdater = () => {
   }, []);
   const verificarActualizaciones = reactExports.useCallback(async (esManual = false) => {
     setLoading(true);
-    if (esManual) {
-      setStatus("Comprobando actualizaciones del sistema...");
-    }
+    setStatus("");
     try {
       let versionActual = CURRENT_BUILD_NUMBER;
       let nombreActual = APP_VERSION;
@@ -49916,17 +49948,10 @@ const BovedaUpdater = () => {
             })
           );
         }
-        const isSameTag = (res.latestVersion || "").trim().replace(/^v/, "") === (nombreActual || "").trim().replace(/^v/, "");
-        setStatus(
-          isSameTag && res.buildNumber ? `Nueva compilación v${res.latestVersion} (build ${res.buildNumber}) lista para instalar.` : `Nueva versión v${res.latestVersion} lista para instalar.`
-        );
+        setStatus("");
       } else {
         setUpdateAvailable(false);
-        if (esManual) {
-          setStatus(`Comprobación completada: Tu aplicación ya cuenta con la versión más reciente (v${nombreActual || CURRENT_APP_VERSION}). No hay nuevas versiones en el servidor.`);
-        } else {
-          setStatus("");
-        }
+        setStatus("");
       }
     } catch (error) {
       setUpdateAvailable(false);
@@ -49945,17 +49970,26 @@ const BovedaUpdater = () => {
     if (!downloadUrl) return;
     setIsInstalling(true);
     setInstallCompleted(false);
-    setDownloadPercent(8);
+    setStatus("");
+    setDownloadPercent(2);
     setDownloadStage("Conectando con el servidor...");
     setDownloadSize("");
     let listenerHandle = null;
     let progressTimer = null;
+    let receivedRealProgress = false;
     let didFinish = false;
     try {
       listenerHandle = await onDownloadProgress((p2) => {
         if (p2 && typeof p2.percent === "number") {
-          const clamped = Math.min(Math.max(p2.percent, 8), 98);
-          setDownloadPercent(clamped);
+          if (!receivedRealProgress) {
+            receivedRealProgress = true;
+            if (progressTimer) {
+              clearInterval(progressTimer);
+              progressTimer = null;
+            }
+          }
+          const clamped = Math.min(Math.max(p2.percent, 2), 99);
+          setDownloadPercent((prev) => Math.max(prev, clamped));
           if (p2.total > 0) {
             const loadedMb = (p2.loaded / (1024 * 1024)).toFixed(1);
             const totalMb = (p2.total / (1024 * 1024)).toFixed(1);
@@ -49973,24 +50007,15 @@ const BovedaUpdater = () => {
         }
       });
       progressTimer = setInterval(() => {
-        setDownloadPercent((prev) => {
-          if (prev < 92) {
-            const step = prev < 35 ? 4 : prev < 70 ? 3 : 1;
-            const next = prev + step;
-            if (next >= 30 && next < 65) {
-              setDownloadStage("Descargando paquete APK...");
-            } else if (next >= 65 && next < 88) {
-              setDownloadStage("Verificando integridad del paquete...");
-            } else if (next >= 88) {
-              setDownloadStage("Preparando instalador de Android...");
-            }
-            return next;
-          }
-          return prev;
-        });
-      }, 350);
+        if (receivedRealProgress) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          return;
+        }
+        setDownloadPercent((prev) => prev < 15 ? prev + 1 : prev);
+      }, 450);
       const res = await downloadAndInstallApk(downloadUrl);
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
       if (res.needsPermission) {
         didFinish = true;
         setIsInstalling(false);
@@ -50006,8 +50031,8 @@ const BovedaUpdater = () => {
       setDownloadStage("¡Descarga completada! Abriendo instalador...");
       setStatus(res.message || "Instalador abierto. Confirma la instalación.");
     } catch (err) {
-      clearInterval(progressTimer);
-      setStatus(err.message || "No se pudo completar la instalación automática. Puedes descargar el APK en el navegador.");
+      if (progressTimer) clearInterval(progressTimer);
+      setStatus(err.message || "No se pudo completar la instalación automática. Verifica tu conexión e inténtalo de nuevo.");
       setDownloadStage("");
       setIsInstalling(false);
       setDownloadPercent(0);
@@ -50021,15 +50046,6 @@ const BovedaUpdater = () => {
           setIsInstalling(false);
         }, 5e3);
       }
-    }
-  };
-  const abrirDescargaExterna = async () => {
-    if (!downloadUrl) return;
-    try {
-      await openApkInBrowser(downloadUrl);
-      setStatus("Descarga iniciada en el navegador. Abre el archivo APK descargado para actualizar.");
-    } catch (err) {
-      setStatus((err == null ? void 0 : err.message) || "No se pudo abrir el enlace de descarga externa.");
     }
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full max-w-md mx-auto space-y-6 font-sans select-none box-border pt-1", children: [
@@ -50077,33 +50093,19 @@ const BovedaUpdater = () => {
         downloadSize && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[11px] text-slate-400 font-mono tabular-nums block text-right", children: downloadSize })
       ] }),
       status && !isInstalling && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full p-3 mb-4 rounded-2xl text-xs font-medium border bg-slate-950/60 border-slate-800 text-slate-300 text-left relative z-10 leading-relaxed", children: status }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full flex flex-col items-center gap-2.5 relative z-10", children: updateAvailable ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: ejecutarActualizacion,
-            disabled: isInstalling,
-            className: "w-full max-w-[270px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: `w-4 h-4 ${isInstalling ? "animate-bounce" : ""}` }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isInstalling ? "Instalando..." : "Instalar actualización" })
-            ]
-          }
-        ),
-        downloadUrl && !isInstalling && /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "button",
-          {
-            type: "button",
-            onClick: abrirDescargaExterna,
-            className: "w-full max-w-[270px] min-h-[44px] py-2 px-4 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]",
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(ExternalLink, { className: "w-3.5 h-3.5 text-blue-400 shrink-0" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Descargar APK en navegador" })
-            ]
-          }
-        )
-      ] }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full flex flex-col items-center gap-2.5 relative z-10", children: updateAvailable ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          type: "button",
+          onClick: ejecutarActualizacion,
+          disabled: isInstalling,
+          className: "w-full max-w-[270px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60",
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: `w-4 h-4 ${isInstalling ? "animate-bounce" : ""}` }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: isInstalling ? "Instalando..." : "Instalar actualización" })
+          ]
+        }
+      ) : /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "button",
         {
           type: "button",
@@ -50208,7 +50210,7 @@ var Encoding;
   Encoding2["UTF16"] = "utf16";
 })(Encoding || (Encoding = {}));
 const Filesystem = registerPlugin("Filesystem", {
-  web: () => __vitePreload(() => import("./web-DajyNYa2.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
+  web: () => __vitePreload(() => import("./web-BTMQmueK.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
 });
 f();
 const BACKUP_DB_NAME = "VaultLocalBackupsDB";
@@ -53290,7 +53292,7 @@ var ProviderId;
   ProviderId2["PHONE"] = "phone";
 })(ProviderId || (ProviderId = {}));
 const FirebaseAuthentication = registerPlugin("FirebaseAuthentication", {
-  web: () => __vitePreload(() => import("./web-DQ8lcTTO.js"), true ? [] : void 0).then((m2) => new m2.FirebaseAuthenticationWeb())
+  web: () => __vitePreload(() => import("./web-lzcgjdUM.js"), true ? [] : void 0).then((m2) => new m2.FirebaseAuthenticationWeb())
 });
 /**
  * @license

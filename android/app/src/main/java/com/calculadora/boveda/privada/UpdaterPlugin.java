@@ -175,8 +175,8 @@ public class UpdaterPlugin extends Plugin {
                         out.write(buffer, 0, bytesRead);
                         totalBytes += bytesRead;
                         if (fileLength > 0) {
-                            int percent = (int) ((totalBytes * 100) / fileLength);
-                            if (percent != lastReportedPercent) {
+                            int percent = (int) Math.min(100, (totalBytes * 100) / fileLength);
+                            if (percent > lastReportedPercent) {
                                 lastReportedPercent = percent;
                                 JSObject progressObj = new JSObject();
                                 progressObj.put("percent", percent);

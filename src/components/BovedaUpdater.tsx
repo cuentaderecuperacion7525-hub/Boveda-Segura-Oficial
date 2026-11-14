@@ -5,9 +5,8 @@ import {
   Download,
   Check,
   Sparkles,
-  ExternalLink,
 } from 'lucide-react';
-import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress, openApkInBrowser } from '../services/nativeUpdaterBridge';
+import { getSafeAppVersionCode, downloadAndInstallApk, onDownloadProgress } from '../services/nativeUpdaterBridge';
 import { updateService } from '../services/updateService';
 import { CURRENT_APP_VERSION, CURRENT_BUILD_NUMBER } from '../version';
 const APP_VERSION = CURRENT_APP_VERSION;
@@ -74,9 +73,7 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
   // Lógica unificada de verificación de versiones
   const verificarActualizaciones = useCallback(async (esManual: boolean = false) => {
     setLoading(true);
-    if (esManual) {
-      setStatus('Comprobando actualizaciones del sistema...');
-    }
+    setStatus('');
 
     try {
       // 1. Obtener versión instalada en el dispositivo
@@ -133,20 +130,10 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
             })
           );
         }
-
-        const isSameTag = (res.latestVersion || '').trim().replace(/^v/, '') === (nombreActual || '').trim().replace(/^v/, '');
-        setStatus(
-          isSameTag && res.buildNumber
-            ? `Nueva compilación v${res.latestVersion} (build ${res.buildNumber}) lista para instalar.`
-            : `Nueva versión v${res.latestVersion} lista para instalar.`
-        );
+        setStatus('');
       } else {
         setUpdateAvailable(false);
-        if (esManual) {
-          setStatus(`Comprobación completada: Tu aplicación ya cuenta con la versión más reciente (v${nombreActual || CURRENT_APP_VERSION}). No hay nuevas versiones en el servidor.`);
-        } else {
-          setStatus('');
-        }
+        setStatus('');
       }
     } catch (error: any) {
       setUpdateAvailable(false);
@@ -169,19 +156,28 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
     if (!downloadUrl) return;
     setIsInstalling(true);
     setInstallCompleted(false);
-    setDownloadPercent(8);
+    setStatus('');
+    setDownloadPercent(2);
     setDownloadStage('Conectando con el servidor...');
     setDownloadSize('');
 
     let listenerHandle: { remove: () => void } | null = null;
     let progressTimer: any = null;
+    let receivedRealProgress = false;
     let didFinish = false;
 
     try {
       listenerHandle = await onDownloadProgress((p) => {
         if (p && typeof p.percent === 'number') {
-          const clamped = Math.min(Math.max(p.percent, 8), 98);
-          setDownloadPercent(clamped);
+          if (!receivedRealProgress) {
+            receivedRealProgress = true;
+            if (progressTimer) {
+              clearInterval(progressTimer);
+              progressTimer = null;
+            }
+          }
+          const clamped = Math.min(Math.max(p.percent, 2), 99);
+          setDownloadPercent((prev) => Math.max(prev, clamped));
           if (p.total > 0) {
             const loadedMb = (p.loaded / (1024 * 1024)).toFixed(1);
             const totalMb = (p.total / (1024 * 1024)).toFixed(1);
@@ -199,27 +195,19 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         }
       });
 
+      // Avance suave inicial solo mientras conecta y aún no llegan bytes reales
       progressTimer = setInterval(() => {
-        setDownloadPercent((prev) => {
-          if (prev < 92) {
-            const step = prev < 35 ? 4 : (prev < 70 ? 3 : 1);
-            const next = prev + step;
-            if (next >= 30 && next < 65) {
-              setDownloadStage('Descargando paquete APK...');
-            } else if (next >= 65 && next < 88) {
-              setDownloadStage('Verificando integridad del paquete...');
-            } else if (next >= 88) {
-              setDownloadStage('Preparando instalador de Android...');
-            }
-            return next;
-          }
-          return prev;
-        });
-      }, 350);
+        if (receivedRealProgress) {
+          clearInterval(progressTimer);
+          progressTimer = null;
+          return;
+        }
+        setDownloadPercent((prev) => (prev < 15 ? prev + 1 : prev));
+      }, 450);
 
       const res = await downloadAndInstallApk(downloadUrl);
 
-      clearInterval(progressTimer);
+      if (progressTimer) clearInterval(progressTimer);
 
       if (res.needsPermission) {
         didFinish = true;
@@ -237,8 +225,8 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
       setDownloadStage('¡Descarga completada! Abriendo instalador...');
       setStatus(res.message || 'Instalador abierto. Confirma la instalación.');
     } catch (err: any) {
-      clearInterval(progressTimer);
-      setStatus(err.message || 'No se pudo completar la instalación automática. Puedes descargar el APK en el navegador.');
+      if (progressTimer) clearInterval(progressTimer);
+      setStatus(err.message || 'No se pudo completar la instalación automática. Verifica tu conexión e inténtalo de nuevo.');
       setDownloadStage('');
       setIsInstalling(false);
       setDownloadPercent(0);
@@ -252,16 +240,6 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
           setIsInstalling(false);
         }, 5000);
       }
-    }
-  };
-
-  const abrirDescargaExterna = async () => {
-    if (!downloadUrl) return;
-    try {
-      await openApkInBrowser(downloadUrl);
-      setStatus('Descarga iniciada en el navegador. Abre el archivo APK descargado para actualizar.');
-    } catch (err: any) {
-      setStatus(err?.message || 'No se pudo abrir el enlace de descarga externa.');
     }
   };
 
@@ -348,30 +326,17 @@ export const BovedaUpdater: React.FC<BovedaUpdaterProps> = () => {
         {/* Botones de Acción Proporcionales con área táctil >= 44px */}
         <div className="w-full flex flex-col items-center gap-2.5 relative z-10">
           {updateAvailable ? (
-            <>
-              <button
-                type="button"
-                onClick={ejecutarActualizacion}
-                disabled={isInstalling}
-                className="w-full max-w-[270px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-              >
-                <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
-                <span>
-                  {isInstalling ? 'Instalando...' : 'Instalar actualización'}
-                </span>
-              </button>
-
-              {downloadUrl && !isInstalling && (
-                <button
-                  type="button"
-                  onClick={abrirDescargaExterna}
-                  className="w-full max-w-[270px] min-h-[44px] py-2 px-4 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                  <span>Descargar APK en navegador</span>
-                </button>
-              )}
-            </>
+            <button
+              type="button"
+              onClick={ejecutarActualizacion}
+              disabled={isInstalling}
+              className="w-full max-w-[270px] min-h-[44px] py-2.5 sm:py-3 px-5 rounded-full bg-gradient-to-r from-[#2563eb] to-[#7c3aed] hover:from-blue-600 hover:to-purple-600 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-indigo-950/60 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              <Download className={`w-4 h-4 ${isInstalling ? 'animate-bounce' : ''}`} />
+              <span>
+                {isInstalling ? 'Instalando...' : 'Instalar actualización'}
+              </span>
+            </button>
           ) : (
             <button
               type="button"

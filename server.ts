@@ -17,8 +17,13 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
+app.set('trust proxy', 1);
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ ok: true, service: 'mi-boveda-email-server' });
+});
 
 // Configuración de envío de correo:
 // Opción A: Google Apps Script Web App URL (APPS_SCRIPT_EMAIL_URL o VITE_APPS_SCRIPT_EMAIL_URL)
@@ -256,36 +261,6 @@ async function enviarCorreoConfirmacion(
   let provider = '';
   let lastError = '';
 
-  // Opción A: Puente Google Apps Script (si no se indicó saltarlo tras intento previo del cliente)
-  if (!options?.skipAppsScript && APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/')) {
-    try {
-      const gasRes = await fetch(APPS_SCRIPT_EMAIL_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'send_verification',
-          email: cleanCorreo,
-          firstName: cleanNombre,
-          token,
-          pin: cleanPin,
-          createdAt: createdAtStr,
-        }),
-      });
-      const gasData: any = await gasRes.json().catch(() => null);
-      if (gasRes.ok && gasData?.success && gasData?.delivered !== false) {
-        delivered = true;
-        provider = 'apps_script';
-        if (gasData.confirmLink) {
-          confirmLink = gasData.confirmLink;
-        }
-      } else {
-        lastError = gasData?.error || `Apps Script HTTP ${gasRes.status}`;
-      }
-    } catch (err: any) {
-      lastError = err?.message || 'Error conectando con Apps Script';
-    }
-  }
-
   const tryGmailSmtp = async () => {
     if (!transporter || delivered) return;
     try {
@@ -341,15 +316,52 @@ async function enviarCorreoConfirmacion(
     }
   };
 
-  // Si Resend usa onboarding@resend.dev (sandbox), priorizar Gmail SMTP verificado;
-  // si Resend usa un dominio propio verificado, intentar Resend primero y Gmail SMTP como respaldo.
+  const tryAppsScript = async () => {
+    if (delivered || options?.skipAppsScript || !APPS_SCRIPT_EMAIL_URL.startsWith('https://script.google.com/macros/s/')) {
+      return;
+    }
+    try {
+      const gasRes = await fetch(APPS_SCRIPT_EMAIL_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'send_verification',
+          email: cleanCorreo,
+          firstName: cleanNombre,
+          token,
+          pin: cleanPin,
+          createdAt: createdAtStr,
+        }),
+      });
+      const gasData: any = await gasRes.json().catch(() => null);
+      if (gasRes.ok && gasData?.success && gasData?.delivered !== false) {
+        delivered = true;
+        provider = 'apps_script';
+        if (gasData.confirmLink) {
+          confirmLink = gasData.confirmLink;
+        }
+      } else {
+        lastError = gasData?.error || `Apps Script HTTP ${gasRes.status}`;
+      }
+    } catch (err: any) {
+      lastError = err?.message || 'Error conectando con Apps Script';
+    }
+  };
+
+  // Prioridad de envío desde servidor público:
+  // 1. Gmail SMTP (GMAIL_USER + GMAIL_PASS) o Resend con dominio propio verificado (entrega en 2-4 seg)
+  // 2. Google Apps Script como respaldo automático
+  // 3. Resend sandbox (onboarding@resend.dev) como último recurso
   const resendUsesSandbox = RESEND_FROM_EMAIL.includes('onboarding@resend.dev');
-  if (resendUsesSandbox && transporter) {
-    await tryGmailSmtp();
+  if (!resendUsesSandbox && VALID_RESEND_KEY) {
     await tryResendApi();
+    await tryGmailSmtp();
   } else {
-    await tryResendApi();
     await tryGmailSmtp();
+  }
+  await tryAppsScript();
+  if (!delivered && resendUsesSandbox && VALID_RESEND_KEY) {
+    await tryResendApi();
   }
 
   if (!delivered) {
@@ -917,10 +929,18 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-    });
+    const distDir = path.join(__dirname, 'dist');
+    const indexHtml = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      app.use(express.static(distDir));
+      app.get('*', (_req, res) => {
+        res.sendFile(indexHtml);
+      });
+    } else {
+      app.get('/', (_req, res) => {
+        res.json({ ok: true, service: 'mi-boveda-email-server' });
+      });
+    }
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
