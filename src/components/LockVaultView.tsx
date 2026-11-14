@@ -8,7 +8,6 @@ import {
   Fingerprint,
   CheckCircle2,
   X,
-  Mail,
   Send,
   Loader2,
   Eye,
@@ -1273,14 +1272,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             fontFamily: "'Manrope', system-ui, -apple-system, sans-serif",
           }}
         >
-          <div className="w-full max-w-[440px] flex flex-col px-6 pt-8 pb-8 box-border">
-            {/* 1. Barra superior: botón "Volver" cuadrado (44×44) a la izquierda (sin las 3 líneas a la derecha) */}
-            <div className="w-full flex items-center justify-start mb-5">
+          <div className="w-full max-w-[440px] flex flex-col px-5 pt-[max(2.75rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] box-border">
+            {/* 1. Barra superior: botón "Volver" cuadrado a la izquierda */}
+            <div className="w-full flex items-center justify-start mb-3">
               <button
                 type="button"
                 onClick={handleForgotBackNavigation}
                 aria-label="Volver"
-                className="w-[44px] h-[44px] rounded-[14px] flex items-center justify-center transition-colors cursor-pointer active:scale-95 shrink-0"
+                className="w-[40px] h-[40px] rounded-[12px] flex items-center justify-center transition-colors cursor-pointer active:scale-95 shrink-0"
                 style={{
                   backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                   border: `1.5px solid ${isLightTheme ? '#D5DEEA' : '#1E293B'}`,
@@ -1297,43 +1296,35 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             {/* STEP 1: VALIDATE REGISTERED EMAIL */}
             {forgotStep === 'email_input' && (
               <div className="flex flex-col">
-                {/* 2. Icono: tile azul sólido de 64×64 con esquinas de 20 px y un icono de sobre/correo blanco */}
-                <div
-                  className="pin-recovery-on-primary w-[64px] h-[64px] rounded-[20px] flex items-center justify-center mb-5 shrink-0"
-                  style={{ backgroundColor: '#0B6FB8' }}
-                >
-                  <Mail className="w-7 h-7 stroke-[2]" />
-                </div>
-
-                {/* 3. Título: "Recupera tu PIN" (30 px, peso 800, color casi negro) */}
+                {/* Título: "Recupera tu PIN" */}
                 <h2
-                  className="text-[30px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-2.5 text-left"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-[-0.02em] mb-1.5 text-left"
                   style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                 >
                   Recupera tu PIN
                 </h2>
 
-                {/* 4. Descripción (16 px, gris oscuro) */}
+                {/* Descripción ajustada */}
                 <p
-                  className="text-[16px] font-medium leading-[1.5] mb-5 text-left"
+                  className="text-[14px] font-medium leading-[1.4] mb-3.5 text-left"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Escribe el correo con el que registraste tu cuenta. Si está registrado, te enviaremos un código de 6 dígitos.
                 </p>
 
                 <form onSubmit={handleSendRecoveryEmailCode} className="flex flex-col">
-                  {/* 5. Etiqueta: "Correo electrónico registrado" (14 px, peso 700) */}
+                  {/* Etiqueta */}
                   <label
                     htmlFor="pin-recovery-email-input"
-                    className="block text-[14px] font-bold mb-2 text-left"
+                    className="block text-[13px] font-bold mb-1.5 text-left"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     Correo electrónico registrado
                   </label>
 
-                  {/* 6. Campo de texto: estilizado h-[48px], esquinas suaves rounded-[14px], sin icono @ */}
+                  {/* Campo de texto */}
                   <div
-                    className="w-full h-[48px] rounded-[14px] px-3.5 flex items-center transition-all box-border shadow-sm"
+                    className="w-full h-[46px] rounded-[14px] px-3.5 flex items-center transition-all box-border shadow-sm"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                       border: isEmailFocused
@@ -1356,14 +1347,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       required
                       autoFocus
                       disabled={isForgotLoading}
-                      className="bg-transparent w-full h-full border-0 p-0 text-[15px] font-medium focus:outline-none focus:ring-0"
+                      className="bg-transparent w-full h-full border-0 p-0 text-[14.5px] font-medium focus:outline-none focus:ring-0"
                       style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                     />
                   </div>
 
-                  {/* 7. Texto de ayuda (13 px) */}
+                  {/* Texto de ayuda */}
                   <p
-                    className="text-[13px] font-medium leading-[1.4] mt-2 text-left"
+                    className="text-[12px] font-medium leading-[1.35] mt-1.5 text-left"
                     style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                   >
                     Si no ves el correo, revisa tu carpeta de spam.
@@ -1371,7 +1362,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
                   {forgotError && (
                     <div
-                      className="mt-3.5 flex items-start gap-2.5 text-[13px] font-semibold p-3.5 rounded-[14px] border text-left"
+                      className="mt-2.5 flex items-start gap-2 text-[12.5px] font-semibold leading-[1.35] p-3 rounded-[12px] border text-left"
                       style={{
                         backgroundColor: isLightTheme ? '#FFF1F2' : 'rgba(244, 63, 94, 0.12)',
                         borderColor: isLightTheme ? '#FECDD3' : 'rgba(244, 63, 94, 0.3)',
@@ -1383,43 +1374,43 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     </div>
                   )}
 
-                  {/* 8. Botón principal: ancho completo, alto 56 px, esquinas de 16 px, azul sólido, texto blanco "Enviar código de 6 dígitos" con icono de avión de papel */}
+                  {/* Botón principal */}
                   <button
                     type="submit"
                     disabled={isForgotLoading || !isForgotEmailValid}
-                    className="pin-recovery-on-primary w-full h-[56px] rounded-[16px] mt-4 font-bold text-[16px] transition-opacity flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="pin-recovery-on-primary w-full h-[50px] rounded-[14px] mt-3 font-bold text-[15px] transition-opacity flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ backgroundColor: '#0B6FB8' }}
                   >
                     {isForgotLoading ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin stroke-[2]" />
+                        <Loader2 className="w-4.5 h-4.5 animate-spin stroke-[2]" />
                         <span>Validando correo...</span>
                       </>
                     ) : (
                       <>
-                        <Send className="w-5 h-5 stroke-[2]" />
+                        <Send className="w-4.5 h-4.5 stroke-[2]" />
                         <span>Enviar código de 6 dígitos</span>
                       </>
                     )}
                   </button>
                 </form>
 
-                {/* 9. Tarjeta de zona de riesgo (fondo blanco, borde gris claro, esquinas de 20 px, padding 18) */}
+                {/* Tarjeta de zona de riesgo */}
                 <div
-                  className="w-full rounded-[20px] p-[18px] text-left box-border mt-5"
+                  className="w-full rounded-[18px] p-3.5 text-left box-border mt-3.5"
                   style={{
                     backgroundColor: isLightTheme ? '#FFFFFF' : '#0A121D',
                     border: `1px solid ${isLightTheme ? '#E2E8F0' : '#1E293B'}`,
                   }}
                 >
                   <h3
-                    className="text-[16px] font-extrabold leading-[1.3] mb-1.5"
+                    className="text-[15px] font-extrabold leading-[1.3] mb-1"
                     style={{ color: isLightTheme ? '#0F172A' : '#F8FAFC' }}
                   >
                     ¿No tienes acceso a ese correo?
                   </h3>
                   <p
-                    className="text-[13px] font-medium leading-[1.45] mb-3.5"
+                    className="text-[12.5px] font-medium leading-[1.38] mb-2.5"
                     style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                   >
                     Puedes empezar con una bóveda nueva. Esta acción elimina el contenido actual y no se puede deshacer.
@@ -1430,7 +1421,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                       setForgotError(null);
                       setForgotStep('no_key');
                     }}
-                    className="w-full h-[48px] rounded-[14px] font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer active:scale-[0.99]"
+                    className="w-full h-[44px] rounded-[12px] font-bold text-[14px] flex items-center justify-center transition-colors cursor-pointer active:scale-[0.99]"
                     style={{
                       backgroundColor: isLightTheme ? '#FFFFFF' : '#0F172A',
                       border: `1.5px solid ${isLightTheme ? '#B45309' : '#D97706'}`,
@@ -1441,11 +1432,11 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   </button>
                 </div>
 
-                {/* 10. Botón de texto "Cancelar" (alto 48 px, gris oscuro) al final */}
+                {/* Botón de texto "Cancelar" */}
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="w-full h-[48px] mt-1.5 font-bold text-[15px] flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-full h-[40px] mt-1 font-bold text-[14px] flex items-center justify-center transition-colors cursor-pointer"
                   style={{ color: isLightTheme ? '#475569' : '#94A3B8' }}
                 >
                   Cancelar
