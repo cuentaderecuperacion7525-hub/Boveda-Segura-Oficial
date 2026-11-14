@@ -387,6 +387,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         });
         showToast('El archivo está vacío (0 bytes).', 'error');
         setIsImporting(false);
+        setTimeout(() => {
+          (window as any).__isPickingFile = false;
+          (window as any).__isProcessingBackup = false;
+        }, 1500);
         e.target.value = '';
         return;
       }
@@ -495,6 +499,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setBackupPinInput('');
         setBackupPinError(null);
         setIsImporting(false);
+        (window as any).__isPickingFile = false;
+        (window as any).__isProcessingBackup = false;
         return;
       }
 
@@ -559,6 +565,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       });
       showToast(`Error al leer archivo de copia: ${err?.message || 'Archivo dañado o inválido.'}`, 'error');
       setIsImporting(false);
+      setTimeout(() => {
+        (window as any).__isPickingFile = false;
+        (window as any).__isProcessingBackup = false;
+      }, 2000);
     } finally {
       e.target.value = '';
     }
@@ -1487,6 +1497,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setShowBackupPinPrompt(false);
                     setPendingBackupBlob(null);
                     setPendingBackupHeader(null);
+                    (window as any).__isPickingFile = false;
+                    (window as any).__isProcessingBackup = false;
                   }}
                   className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
                   disabled={isVerifyingBackupPin}

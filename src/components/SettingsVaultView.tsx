@@ -859,6 +859,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
     } finally {
       setIsImporting(false);
       setTimeout(() => {
+        (window as any).__isPickingFile = false;
         (window as any).__isProcessingBackup = false;
       }, 2000);
     }
@@ -1003,6 +1004,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       setIsVerifyingBackupPin(false);
       setIsImporting(false);
       setTimeout(() => {
+        (window as any).__isPickingFile = false;
         (window as any).__isProcessingBackup = false;
       }, 2000);
     }
@@ -2134,6 +2136,8 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
                     setShowBackupPinPrompt(false);
                     setPendingBackupBlob(null);
                     setPendingBackupHeader(null);
+                    (window as any).__isPickingFile = false;
+                    (window as any).__isProcessingBackup = false;
                   }}
                   className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
                   disabled={isVerifyingBackupPin}
