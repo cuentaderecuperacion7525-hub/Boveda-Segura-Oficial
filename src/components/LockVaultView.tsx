@@ -744,16 +744,16 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     }
   }, [pin, isVerifying, isBioLoading, remainingLockout]);
 
+  const showForgotModalRef = useRef(showForgotModal);
+  showForgotModalRef.current = showForgotModal;
+  const showEnrollBioModalRef = useRef(showEnrollBioModal);
+  showEnrollBioModalRef.current = showEnrollBioModal;
+
   // Sensor de huella automático y reconexión al volver a la app o maximizar
   useEffect(() => {
     let isMounted = true;
     let bioDebounceTimeout: any = null;
     let lastAutoTriggerTime = 0;
-
-    const showForgotModalRef = useRef(showForgotModal);
-    showForgotModalRef.current = showForgotModal;
-    const showEnrollBioModalRef = useRef(showEnrollBioModal);
-    showEnrollBioModalRef.current = showEnrollBioModal;
 
     const triggerAutoBiometrics = async (forceFresh = false) => {
       if (showForgotModalRef.current || showEnrollBioModalRef.current) return;
