@@ -184,15 +184,48 @@ class UserProfileService {
     });
   }
 
+  public getInitialsFromNames(firstName?: string, lastName?: string, email?: string): string {
+    const SPANISH_CONNECTORS = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e']);
+
+    const extractWords = (raw?: string): string[] => {
+      const tokens = (raw || '')
+        .trim()
+        .split(/\s+/)
+        .map((w) => w.replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/, '').trim())
+        .filter(Boolean);
+      if (tokens.length === 0) return [];
+      const meaningful = tokens.filter((w) => !SPANISH_CONNECTORS.has(w.toLowerCase()));
+      return meaningful.length > 0 ? meaningful : tokens;
+    };
+
+    const firstChar = (word?: string): string => {
+      if (!word) return '';
+      return Array.from(word)[0] || '';
+    };
+
+    const firstWords = extractWords(firstName);
+    if (firstWords.length >= 2) {
+      return `${firstChar(firstWords[0])}${firstChar(firstWords[1])}`.toUpperCase();
+    }
+
+    if (firstWords.length === 1) {
+      const lastWords = extractWords(lastName);
+      if (lastWords.length >= 1) {
+        return `${firstChar(firstWords[0])}${firstChar(lastWords[0])}`.toUpperCase();
+      }
+      return firstChar(firstWords[0]).toUpperCase();
+    }
+
+    const emailLocal = (email || '').split('@')[0]?.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]/g, '') || '';
+    if (emailLocal) {
+      return Array.from(emailLocal).slice(0, 2).join('').toUpperCase();
+    }
+    return 'U';
+  }
+
   public getInitials(profile: UserProfile | null): string {
-    if (!profile) return 'YO';
-    const firstParts = (profile.firstName || '').trim().split(/\s+/).filter(Boolean);
-    const f = firstParts[0]?.[0] || '';
-    const l = profile.lastName?.trim()?.[0] || firstParts[1]?.[0] || '';
-    const combined = `${f}${l}`.toUpperCase();
-    if (combined) return combined;
-    if (profile.email) return profile.email.slice(0, 2).toUpperCase();
-    return 'YO';
+    if (!profile) return 'U';
+    return this.getInitialsFromNames(profile.firstName, profile.lastName, profile.email);
   }
 }
 

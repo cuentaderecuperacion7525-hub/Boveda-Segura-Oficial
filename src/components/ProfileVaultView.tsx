@@ -527,12 +527,14 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
             />
           ) : (
             <div
-              className="w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-[32px] font-medium shadow-lg select-none"
+              className={`w-[76px] h-[76px] rounded-full flex items-center justify-center text-white font-medium shadow-lg select-none leading-none ${
+                initials.length > 1 ? 'text-[26px] tracking-tight' : 'text-[32px]'
+              }`}
               style={{
                 background: 'linear-gradient(135deg, #00f0b5, #00b4d8)',
               }}
             >
-              {profile?.firstName ? profile.firstName.trim().charAt(0).toUpperCase() : 'U'}
+              {initials}
             </div>
           )}
         </div>
@@ -985,9 +987,18 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                           className="w-20 h-20 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white text-4xl font-bold select-none">
-                          {(editFirst.trim() || editEmail.trim() || 'U').charAt(0).toUpperCase()}
-                        </div>
+                        (() => {
+                          const editInitials = userProfileService.getInitialsFromNames(editFirst, editLast, editEmail);
+                          return (
+                            <div
+                              className={`profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white font-bold select-none leading-none ${
+                                editInitials.length > 1 ? 'text-[28px] tracking-tight' : 'text-4xl'
+                              }`}
+                            >
+                              {editInitials}
+                            </div>
+                          );
+                        })()
                       )}
                     </div>
                   </div>

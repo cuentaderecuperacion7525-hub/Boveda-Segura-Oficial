@@ -16316,7 +16316,7 @@ registerPlugin("SystemBars", {
   web: () => new SystemBarsPluginWeb()
 });
 const App$1 = registerPlugin("App", {
-  web: () => __vitePreload(() => import("./web-C7wcGTnr.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
+  web: () => __vitePreload(() => import("./web-DYS6NzoM.js"), true ? [] : void 0).then((m2) => new m2.AppWeb())
 });
 const TEST_VERIFICATION_STRING = "VAULT_VERIFY_KEY_OK";
 function bufToHex(buffer) {
@@ -20083,16 +20083,39 @@ class UserProfileService {
       }
     });
   }
+  getInitialsFromNames(firstName, lastName, email) {
+    var _a2;
+    const SPANISH_CONNECTORS = /* @__PURE__ */ new Set(["de", "del", "la", "las", "los", "y", "e"]);
+    const extractWords = (raw) => {
+      const tokens = (raw || "").trim().split(/\s+/).map((w2) => w2.replace(/^[^A-Za-zÀ-ÖØ-öø-ÿ0-9]+/, "").trim()).filter(Boolean);
+      if (tokens.length === 0) return [];
+      const meaningful = tokens.filter((w2) => !SPANISH_CONNECTORS.has(w2.toLowerCase()));
+      return meaningful.length > 0 ? meaningful : tokens;
+    };
+    const firstChar = (word) => {
+      if (!word) return "";
+      return Array.from(word)[0] || "";
+    };
+    const firstWords = extractWords(firstName);
+    if (firstWords.length >= 2) {
+      return `${firstChar(firstWords[0])}${firstChar(firstWords[1])}`.toUpperCase();
+    }
+    if (firstWords.length === 1) {
+      const lastWords = extractWords(lastName);
+      if (lastWords.length >= 1) {
+        return `${firstChar(firstWords[0])}${firstChar(lastWords[0])}`.toUpperCase();
+      }
+      return firstChar(firstWords[0]).toUpperCase();
+    }
+    const emailLocal = ((_a2 = (email || "").split("@")[0]) == null ? void 0 : _a2.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ0-9]/g, "")) || "";
+    if (emailLocal) {
+      return Array.from(emailLocal).slice(0, 2).join("").toUpperCase();
+    }
+    return "U";
+  }
   getInitials(profile) {
-    var _a2, _b2, _c2, _d2;
-    if (!profile) return "YO";
-    const firstParts = (profile.firstName || "").trim().split(/\s+/).filter(Boolean);
-    const f2 = ((_a2 = firstParts[0]) == null ? void 0 : _a2[0]) || "";
-    const l2 = ((_c2 = (_b2 = profile.lastName) == null ? void 0 : _b2.trim()) == null ? void 0 : _c2[0]) || ((_d2 = firstParts[1]) == null ? void 0 : _d2[0]) || "";
-    const combined = `${f2}${l2}`.toUpperCase();
-    if (combined) return combined;
-    if (profile.email) return profile.email.slice(0, 2).toUpperCase();
-    return "YO";
+    if (!profile) return "U";
+    return this.getInitialsFromNames(profile.firstName, profile.lastName, profile.email);
   }
 }
 const userProfileService = new UserProfileService();
@@ -20863,7 +20886,18 @@ const LockVaultView = ({
                       alt: userDisplayName,
                       className: "w-full h-full object-cover"
                     }
-                  ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { color: "#0E1940", fontSize: "28px", fontWeight: 700 }, children: userInitials.charAt(0) || "J" })
+                  ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "span",
+                    {
+                      className: "leading-none tracking-tight",
+                      style: {
+                        color: "#0E1940",
+                        fontSize: userInitials.length > 1 ? "24px" : "28px",
+                        fontWeight: 700
+                      },
+                      children: userInitials
+                    }
+                  )
                 }
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -40481,7 +40515,7 @@ const DocumentReader = ({
           setLoadingMessage("Procesando documento Word…");
           if (lowerName.endsWith(".docx") || mimeType.includes("openxmlformats")) {
             try {
-              const mammothModule = await __vitePreload(() => import("./index-4F-ilElO.js").then((n2) => n2.i), true ? [] : void 0);
+              const mammothModule = await __vitePreload(() => import("./index-CJA53w-e.js").then((n2) => n2.i), true ? [] : void 0);
               const mammoth = mammothModule.default || mammothModule;
               const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
               if (!isCancelled) {
@@ -49215,9 +49249,9 @@ const SecurityVaultView = ({
     )
   ] });
 };
-const APP_VERSION$1 = "1.0.24";
+const APP_VERSION$1 = "1.0.26";
 const CURRENT_APP_VERSION = APP_VERSION$1;
-const CURRENT_BUILD_NUMBER = 2024;
+const CURRENT_BUILD_NUMBER = 2026;
 const UpdaterPlugin = registerPlugin("UpdaterPlugin");
 function onDownloadProgress(callback) {
   if (Capacitor.isNativePlatform() && typeof UpdaterPlugin.addListener === "function") {
@@ -50536,7 +50570,7 @@ var Encoding;
   Encoding2["UTF16"] = "utf16";
 })(Encoding || (Encoding = {}));
 const Filesystem = registerPlugin("Filesystem", {
-  web: () => __vitePreload(() => import("./web-RMZ0oTu6.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
+  web: () => __vitePreload(() => import("./web-CbLAR-bt.js"), true ? [] : void 0).then((m2) => new m2.FilesystemWeb())
 });
 f();
 const BACKUP_DB_NAME = "VaultLocalBackupsDB";
@@ -53641,7 +53675,7 @@ var ProviderId;
   ProviderId2["PHONE"] = "phone";
 })(ProviderId || (ProviderId = {}));
 const FirebaseAuthentication = registerPlugin("FirebaseAuthentication", {
-  web: () => __vitePreload(() => import("./web-VBvFZ3uA.js"), true ? [] : void 0).then((m2) => new m2.FirebaseAuthenticationWeb())
+  web: () => __vitePreload(() => import("./web-D4gqoQrJ.js"), true ? [] : void 0).then((m2) => new m2.FirebaseAuthenticationWeb())
 });
 /**
  * @license
@@ -89743,7 +89777,7 @@ const ProfileVaultView = ({
   });
   const totalItems = dynamicCategories.reduce((acc, cat) => acc + cat.count, 0);
   const totalVaultBytes = counts.totalBytes > 0 ? counts.totalBytes : dynamicCategories.reduce((acc, cat) => acc + cat.bytes, 0);
-  userProfileService.getInitials(profile);
+  const initials = userProfileService.getInitials(profile);
   const formatStorageMB = (bytes) => {
     if (!bytes || bytes <= 0) return "0 MB";
     const mb = bytes / (1024 * 1024);
@@ -89828,11 +89862,11 @@ const ProfileVaultView = ({
           ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: "w-[76px] h-[76px] rounded-full flex items-center justify-center text-white text-[32px] font-medium shadow-lg select-none",
+              className: `w-[76px] h-[76px] rounded-full flex items-center justify-center text-white font-medium shadow-lg select-none leading-none ${initials.length > 1 ? "text-[26px] tracking-tight" : "text-[32px]"}`,
               style: {
                 background: "linear-gradient(135deg, #00f0b5, #00b4d8)"
               },
-              children: (profile == null ? void 0 : profile.firstName) ? profile.firstName.trim().charAt(0).toUpperCase() : "U"
+              children: initials
             }
           ) }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -90286,7 +90320,16 @@ const ProfileVaultView = ({
                               alt: editFirst || (profile == null ? void 0 : profile.firstName) || "Perfil",
                               className: "w-20 h-20 rounded-full object-cover"
                             }
-                          ) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white text-4xl font-bold select-none", children: (editFirst.trim() || editEmail.trim() || "U").charAt(0).toUpperCase() })
+                          ) : (() => {
+                            const editInitials = userProfileService.getInitialsFromNames(editFirst, editLast, editEmail);
+                            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                              "div",
+                              {
+                                className: `profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white font-bold select-none leading-none ${editInitials.length > 1 ? "text-[28px] tracking-tight" : "text-4xl"}`,
+                                children: editInitials
+                              }
+                            );
+                          })()
                         }
                       ) }),
                       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "profile-edit-camera-badge absolute bottom-0 right-0 w-8 h-8 rounded-full bg-slate-100 border-2 border-[#090f1d] flex items-center justify-center text-slate-900 shadow-md group-hover:scale-105 active:scale-95 transition-transform", children: /* @__PURE__ */ jsxRuntimeExports.jsx(Camera, { className: "w-4 h-4" }) })

@@ -975,8 +975,15 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span style={{ color: '#0E1940', fontSize: '28px', fontWeight: 700 }}>
-                  {userInitials.charAt(0) || 'J'}
+                <span
+                  className="leading-none tracking-tight"
+                  style={{
+                    color: '#0E1940',
+                    fontSize: userInitials.length > 1 ? '24px' : '28px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {userInitials}
                 </span>
               )}
             </div>

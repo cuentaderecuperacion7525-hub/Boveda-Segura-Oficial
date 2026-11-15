@@ -3,42 +3,15 @@
   "releaseDate": "14 de noviembre de 2026",
   "novedades": [
     {
-      "titulo": "Bloqueo automático inteligente",
-      "descripcion": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable."
-    },
-    {
-      "titulo": "Restauración de copias protegida",
-      "descripcion": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos."
-    },
-    {
-      "titulo": "Pantalla Recupera tu PIN optimizada",
-      "descripcion": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles."
-    },
-    {
-      "titulo": "Novedades dinámicas desde GitHub",
-      "descripcion": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión."
+      "titulo": "Compilación",
+      "descripcion": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
     }
   ],
   "cambios": [
     {
-      "titulo": "Bloqueo automático inteligente",
-      "texto": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable.",
-      "descripcion": "Bloqueo por inactividad y al salir de la app con escudo de privacidad y tiempo de gracia configurable."
-    },
-    {
-      "titulo": "Restauración de copias protegida",
-      "texto": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos.",
-      "descripcion": "Evita cierres de sesión al abrir el selector de archivos del teléfono para restaurar respaldos."
-    },
-    {
-      "titulo": "Pantalla Recupera tu PIN optimizada",
-      "texto": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles.",
-      "descripcion": "Diseño ajustado para visualizar todo el contenido sin recortes en pantallas móviles."
-    },
-    {
-      "titulo": "Novedades dinámicas desde GitHub",
-      "texto": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión.",
-      "descripcion": "Historial de cambios sincronizado en vivo con cada release y caché sin conexión."
+      "titulo": "Compilación",
+      "texto": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment.",
+      "descripcion": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
     }
   ]
 }
