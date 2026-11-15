@@ -43,6 +43,7 @@ import { registerBackHandler } from '../services/backButtonService';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { userProfileService, UserProfile } from '../services/userProfileService';
+import { getDailyReflection } from '../data/dailyQuotes';
 import { PinKeypad } from './PinKeypad';
 
 interface LockVaultViewProps {
@@ -132,6 +133,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   };
 
   const userInitials = userProfileService.getInitials(userProfile) || 'JM';
+  const dailyReflection = getDailyReflection();
 
   // Open Forgot PIN flow
   const handleOpenForgotPin = () => {
@@ -1020,6 +1022,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             >
               {userDisplayName}
             </h2>
+
+            {/* Reflexión diaria motivacional (366 frases únicas por día de calendario, independiente del año) */}
+            <p
+              className="mt-5 max-w-[295px] text-[13.5px] leading-relaxed font-normal italic"
+              style={{ color: 'rgba(14, 25, 64, 0.74)' }}
+            >
+              “{dailyReflection}”
+            </p>
 
             {/* Error discreto si la huella falló o se canceló */}
             {errorMessage && (
