@@ -4,13 +4,18 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.RenderEffect;
+import android.graphics.Shader;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.PermissionRequest;
 import android.webkit.WebView;
+import android.widget.FrameLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
@@ -27,6 +32,8 @@ import java.util.Locale;
 public class MainActivity extends BridgeActivity {
     private static final int PERMISSION_REQ_CODE = 1001;
     private static boolean currentIsDarkTheme = true;
+    private View privacyBlurVeil = null;
+    private boolean isPrivacyBlurApplied = false;
 
     public static void syncSafeAreaInsetsToWebView(final Activity activity) {
         if (activity == null) return;
@@ -134,7 +141,87 @@ public class MainActivity extends BridgeActivity {
                 // Re-aplicar después en la cola del hilo principal para sobrescribir cualquier llamada tardía de SystemBars de Capacitor 8
                 activity.getWindow().getDecorView().post(applyTask);
             } catch (Exception ignored) {}
+            if (activity instanceof MainActivity) {
+                ((MainActivity) activity).refreshPrivacyVeilColor();
+            }
         });
+    }
+
+    private void ensurePrivacyBlurVeil() {
+        if (privacyBlurVeil != null) return;
+        try {
+            FrameLayout contentRoot = findViewById(android.R.id.content);
+            if (contentRoot == null) return;
+            View veil = new View(this);
+            veil.setClickable(false);
+            veil.setFocusable(false);
+            veil.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            veil.setVisibility(View.GONE);
+            contentRoot.addView(
+                veil,
+                new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            );
+            privacyBlurVeil = veil;
+            refreshPrivacyVeilColor();
+        } catch (Exception ignored) {}
+    }
+
+    private void refreshPrivacyVeilColor() {
+        if (privacyBlurVeil == null) return;
+        try {
+            final int veilColor;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                veilColor = currentIsDarkTheme
+                    ? Color.argb(80, 6, 11, 20)
+                    : Color.argb(72, 241, 245, 249);
+            } else {
+                veilColor = currentIsDarkTheme
+                    ? Color.argb(235, 6, 11, 20)
+                    : Color.argb(232, 241, 245, 249);
+            }
+            privacyBlurVeil.setBackgroundColor(veilColor);
+        } catch (Exception ignored) {}
+    }
+
+    private void applyPrivacyBlur(final boolean enabled) {
+        final Runnable task = () -> {
+            if (isPrivacyBlurApplied == enabled) return;
+            isPrivacyBlurApplied = enabled;
+            try {
+                ensurePrivacyBlurVeil();
+                refreshPrivacyVeilColor();
+
+                WebView webView = (getBridge() != null) ? getBridge().getWebView() : null;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && webView != null) {
+                    if (enabled) {
+                        float density = getResources().getDisplayMetrics().density;
+                        if (density <= 0f) density = 1f;
+                        float radiusPx = Math.max(36f, Math.min(84f, 24f * density));
+                        webView.setRenderEffect(
+                            RenderEffect.createBlurEffect(radiusPx, radiusPx, Shader.TileMode.CLAMP)
+                        );
+                    } else {
+                        webView.setRenderEffect(null);
+                    }
+                    webView.invalidate();
+                }
+
+                if (privacyBlurVeil != null) {
+                    privacyBlurVeil.setVisibility(enabled ? View.VISIBLE : View.GONE);
+                    privacyBlurVeil.bringToFront();
+                    privacyBlurVeil.invalidate();
+                }
+            } catch (Exception ignored) {}
+        };
+
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            task.run();
+        } else {
+            runOnUiThread(task);
+        }
     }
 
     @Override
@@ -248,19 +335,31 @@ public class MainActivity extends BridgeActivity {
                 } catch (Exception ignored) {}
             });
         }
+
+        ensurePrivacyBlurVeil();
     }
 
     @Override
     public void onResume() {
         super.onResume();
+        applyPrivacyBlur(false);
         applySystemBarsTheme(this, currentIsDarkTheme);
+    }
+
+    @Override
+    public void onPause() {
+        applyPrivacyBlur(true);
+        super.onPause();
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
+            applyPrivacyBlur(false);
             applySystemBarsTheme(this, currentIsDarkTheme);
+        } else {
+            applyPrivacyBlur(true);
         }
     }
 

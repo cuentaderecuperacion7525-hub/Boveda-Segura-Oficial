@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Shield } from 'lucide-react';
 import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { SetupVaultView } from './components/SetupVaultView';
 import { LockVaultView } from './components/LockVaultView';
 import { MainVaultView } from './components/MainVaultView';
@@ -368,7 +369,9 @@ export default function App() {
       if (vaultStatusRef.current !== 'unlocked') return;
       if (isProtectedOperationActive()) return;
 
-      setIsPrivacyBlurActive(true);
+      if (!Capacitor.isNativePlatform()) {
+        setIsPrivacyBlurActive(true);
+      }
 
       if (leftAppAtRef.current === null) {
         leftAppAtRef.current = Date.now();
