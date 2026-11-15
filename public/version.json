@@ -1,19 +1,19 @@
 {
-  "version": "1.0.32",
-  "version_name": "1.0.32",
-  "buildNumber": 2032,
-  "version_code": 2032,
+  "version": "1.0.33",
+  "version_name": "1.0.33",
+  "buildNumber": 2033,
+  "version_code": 2033,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
-  "fecha": "2026-11-14",
+  "fecha": "2026-11-15",
   "novedades": [
     {
-      "titulo": "Diseño e interfaz",
-      "descripcion": "Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
+      "titulo": "Nueva mejora",
+      "descripcion": "Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
     }
   ],
-  "releaseDate": "14 de noviembre de 2026",
+  "releaseDate": "15 de noviembre de 2026",
   "changelog": [
-    "Diseño e interfaz: Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
+    "Nueva mejora: Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
   ],
   "mandatory": false
 }
