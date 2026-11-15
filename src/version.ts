@@ -11,9 +11,9 @@ export interface VersionInfo {
   mandatory?: boolean;
 }
 
-export const APP_VERSION = '1.0.33';
+export const APP_VERSION = '1.0.34';
 export const CURRENT_APP_VERSION = APP_VERSION;
-export const CURRENT_BUILD_NUMBER = 2033;
+export const CURRENT_BUILD_NUMBER = 2034;
 export const CURRENT_RELEASE_DATE = '';
 
 export const CURRENT_CHANGELOG: string[] = [];

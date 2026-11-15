@@ -3,15 +3,15 @@
   "releaseDate": "15 de noviembre de 2026",
   "novedades": [
     {
-      "titulo": "Nueva mejora",
-      "descripcion": "Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
+      "titulo": "Nueva mejora en Ui",
+      "descripcion": "Add daily motivational reflections to lock screen. Introduce a daily inspiration feature to the LockVaultView, displaying a unique, calendar-based quote to provide a positive user experience upon vault access."
     }
   ],
   "cambios": [
     {
-      "titulo": "Nueva mejora",
-      "texto": "Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps.",
-      "descripcion": "Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
+      "titulo": "Nueva mejora en Ui",
+      "texto": "Add daily motivational reflections to lock screen. Introduce a daily inspiration feature to the LockVaultView, displaying a unique, calendar-based quote to provide a positive user experience upon vault access.",
+      "descripcion": "Add daily motivational reflections to lock screen. Introduce a daily inspiration feature to the LockVaultView, displaying a unique, calendar-based quote to provide a positive user experience upon vault access."
     }
   ]
 }

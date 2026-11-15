@@ -1,19 +1,19 @@
 {
-  "version": "1.0.33",
-  "version_name": "1.0.33",
-  "buildNumber": 2033,
-  "version_code": 2033,
+  "version": "1.0.34",
+  "version_name": "1.0.34",
+  "buildNumber": 2034,
+  "version_code": 2034,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "fecha": "2026-11-15",
   "novedades": [
     {
-      "titulo": "Nueva mejora",
-      "descripcion": "Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
+      "titulo": "Nueva mejora en Ui",
+      "descripcion": "Add daily motivational reflections to lock screen. Introduce a daily inspiration feature to the LockVaultView, displaying a unique, calendar-based quote to provide a positive user experience upon vault access."
     }
   ],
   "releaseDate": "15 de noviembre de 2026",
   "changelog": [
-    "Nueva mejora: Implement native app privacy blur veil. Add native blur effect to MainActivity to hide app content when in the background, ensuring data protection when switching apps."
+    "Nueva mejora en Ui: Add daily motivational reflections to lock screen. Introduce a daily inspiration feature to the LockVaultView, displaying a unique, calendar-based quote to provide a positive user experience upon vault access."
   ],
   "mandatory": false
 }
