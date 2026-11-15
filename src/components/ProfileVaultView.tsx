@@ -104,6 +104,16 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
   const [editError, setEditError] = useState<string | null>(null);
   const [isChangingGoogle, setIsChangingGoogle] = useState(false);
 
+  const isGoogleHostedAvatar = (url?: string): boolean => {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return (
+      lower.includes('googleusercontent.com') ||
+      lower.includes('ggpht.com') ||
+      lower.includes('google.com')
+    );
+  };
+
   // Modals for Support, Terms, and Developer
   const [activeInfoModal, setActiveInfoModal] = useState<'privacy' | 'terms' | 'support' | 'developer' | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
@@ -278,6 +288,15 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
     const currentEmail = (profile?.email || '').trim().toLowerCase();
     const isEmailChanging = currentEmail && cleanEmail !== currentEmail;
 
+    const savedFirst = (profile?.firstName || '').replace(/\s+/g, ' ').trim();
+    const savedLast = (profile?.lastName || '').replace(/\s+/g, ' ').trim();
+    const nameChangedManually = cleanFirst !== savedFirst || cleanLast !== savedLast;
+    const rawCurrentPhoto = editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL;
+    const finalPhotoURL =
+      nameChangedManually && isGoogleHostedAvatar(rawCurrentPhoto)
+        ? ''
+        : rawCurrentPhoto;
+
     // Save profile directly preserving original authProvider ('google.com' or 'password')
     const savedProfile = userProfileService.saveUserProfile({
       firstName: cleanFirst,
@@ -286,7 +305,7 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
       age: age ?? profile?.age,
       email: cleanEmail,
       emailVerified: true,
-      photoURL: editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL,
+      photoURL: finalPhotoURL,
       authProvider: profile?.authProvider || 'password',
     });
 
@@ -980,26 +999,39 @@ export const ProfileVaultView: React.FC<ProfileVaultViewProps> = ({
                       className="p-[3px] rounded-full bg-[#090f1d]"
                       style={{ backgroundColor: 'var(--theme-bg-card, #090f1d)' }}
                     >
-                      {(editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL) ? (
-                        <img
-                          src={editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL}
-                          alt={editFirst || profile?.firstName || 'Perfil'}
-                          className="w-20 h-20 rounded-full object-cover"
-                        />
-                      ) : (
-                        (() => {
-                          const editInitials = userProfileService.getInitialsFromNames(editFirst, editLast, editEmail);
+                      {(() => {
+                        const savedFirst = (profile?.firstName || '').replace(/\s+/g, ' ').trim();
+                        const savedLast = (profile?.lastName || '').replace(/\s+/g, ' ').trim();
+                        const typedFirst = editFirst.replace(/\s+/g, ' ').trim();
+                        const typedLast = editLast.replace(/\s+/g, ' ').trim();
+                        const nameChangedManually = typedFirst !== savedFirst || typedLast !== savedLast;
+                        const rawPreviewPhoto = editPhotoURL !== undefined ? editPhotoURL : profile?.photoURL;
+                        const effectivePreviewPhoto =
+                          nameChangedManually && isGoogleHostedAvatar(rawPreviewPhoto)
+                            ? ''
+                            : rawPreviewPhoto;
+
+                        if (effectivePreviewPhoto) {
                           return (
-                            <div
-                              className={`profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white font-bold select-none leading-none ${
-                                editInitials.length > 1 ? 'text-[28px] tracking-tight' : 'text-4xl'
-                              }`}
-                            >
-                              {editInitials}
-                            </div>
+                            <img
+                              src={effectivePreviewPhoto}
+                              alt={editFirst || profile?.firstName || 'Perfil'}
+                              className="w-20 h-20 rounded-full object-cover"
+                            />
                           );
-                        })()
-                      )}
+                        }
+
+                        const editInitials = userProfileService.getInitialsFromNames(editFirst, editLast, editEmail);
+                        return (
+                          <div
+                            className={`profile-edit-avatar-circle w-20 h-20 rounded-full bg-gradient-to-b from-[#00d2b8] to-[#1d63e8] flex items-center justify-center text-white font-bold select-none leading-none ${
+                              editInitials.length > 1 ? 'text-[28px] tracking-tight' : 'text-4xl'
+                            }`}
+                          >
+                            {editInitials}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
