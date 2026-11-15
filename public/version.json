@@ -1,19 +1,19 @@
 {
-  "version": "1.0.27",
-  "version_name": "1.0.27",
-  "buildNumber": 2027,
-  "version_code": 2027,
+  "version": "1.0.28",
+  "version_name": "1.0.28",
+  "buildNumber": 2028,
+  "version_code": 2028,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "fecha": "2026-11-14",
   "novedades": [
     {
-      "titulo": "Compilación",
-      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
+      "titulo": "Mejora interna",
+      "descripcion": "Improve security, camera handling, and UX. - Add manual export-to-device removal logic - Fix race conditions in camera stream management - Restrict keyboard listeners and biometrics during modal states - Update build pipeline to use vite - Ensure full recovery key reset during vault wipe"
     }
   ],
   "releaseDate": "14 de noviembre de 2026",
   "changelog": [
-    "Compilación: Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
+    "Mejora interna: Improve security, camera handling, and UX. - Add manual export-to-device removal logic - Fix race conditions in camera stream management - Restrict keyboard listeners and biometrics during modal states - Update build pipeline to use vite - Ensure full recovery key reset during vault wipe"
   ],
   "mandatory": false
 }

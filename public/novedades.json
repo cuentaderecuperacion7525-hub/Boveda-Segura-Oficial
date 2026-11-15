@@ -3,15 +3,15 @@
   "releaseDate": "14 de noviembre de 2026",
   "novedades": [
     {
-      "titulo": "Compilación",
-      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
+      "titulo": "Mejora interna",
+      "descripcion": "Improve security, camera handling, and UX. - Add manual export-to-device removal logic - Fix race conditions in camera stream management - Restrict keyboard listeners and biometrics during modal states - Update build pipeline to use vite - Ensure full recovery key reset during vault wipe"
     }
   ],
   "cambios": [
     {
-      "titulo": "Compilación",
-      "texto": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow.",
-      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
+      "titulo": "Mejora interna",
+      "texto": "Improve security, camera handling, and UX. - Add manual export-to-device removal logic - Fix race conditions in camera stream management - Restrict keyboard listeners and biometrics during modal states - Update build pipeline to use vite - Ensure full recovery key reset during vault wipe",
+      "descripcion": "Improve security, camera handling, and UX. - Add manual export-to-device removal logic - Fix race conditions in camera stream management - Restrict keyboard listeners and biometrics during modal states - Update build pipeline to use vite - Ensure full recovery key reset during vault wipe"
     }
   ]
 }
