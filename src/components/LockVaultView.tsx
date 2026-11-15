@@ -1007,11 +1007,12 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
               {getTimeGreeting()}
             </span>
 
-            {/* Nombre de usuario en UNA sola línea, serif en negrita 26 px */}
+            {/* Nombre de usuario en UNA sola línea, serif editorial negrita 26 px */}
             <h2
               className="text-[26px] font-serif font-bold tracking-tight leading-tight mt-1 text-[#0E1940] whitespace-nowrap overflow-hidden text-ellipsis max-w-full"
               title={userDisplayName}
               style={{
+                fontFamily: "'Newsreader', ui-serif, Georgia, Cambria, 'Times New Roman', serif",
                 fontSize: '26px',
                 fontWeight: 700,
                 color: '#0E1940',
