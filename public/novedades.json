@@ -3,15 +3,15 @@
   "releaseDate": "14 de noviembre de 2026",
   "novedades": [
     {
-      "titulo": "Corrección",
-      "descripcion": "Resolve invalid hook call in LockVaultView. Move state refs outside of the useEffect hook to comply with React rules of hooks and ensure proper reference tracking."
+      "titulo": "Nueva mejora en Ui",
+      "descripcion": "Update font family to Newsreader for headers. Replace the default serif stack with the Newsreader font to improve typography for the user display name in the vault view."
     }
   ],
   "cambios": [
     {
-      "titulo": "Corrección",
-      "texto": "Resolve invalid hook call in LockVaultView. Move state refs outside of the useEffect hook to comply with React rules of hooks and ensure proper reference tracking.",
-      "descripcion": "Resolve invalid hook call in LockVaultView. Move state refs outside of the useEffect hook to comply with React rules of hooks and ensure proper reference tracking."
+      "titulo": "Nueva mejora en Ui",
+      "texto": "Update font family to Newsreader for headers. Replace the default serif stack with the Newsreader font to improve typography for the user display name in the vault view.",
+      "descripcion": "Update font family to Newsreader for headers. Replace the default serif stack with the Newsreader font to improve typography for the user display name in the vault view."
     }
   ]
 }
