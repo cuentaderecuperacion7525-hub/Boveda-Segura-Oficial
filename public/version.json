@@ -1,19 +1,19 @@
 {
-  "version": "1.0.30",
-  "version_name": "1.0.30",
-  "buildNumber": 2030,
-  "version_code": 2030,
+  "version": "1.0.31",
+  "version_name": "1.0.31",
+  "buildNumber": 2031,
+  "version_code": 2031,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "fecha": "2026-11-14",
   "novedades": [
     {
-      "titulo": "Nueva mejora en Ui",
-      "descripcion": "Update font family to Newsreader for headers. Replace the default serif stack with the Newsreader font to improve typography for the user display name in the vault view."
+      "titulo": "Nueva mejora en Profile",
+      "descripcion": "Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
     }
   ],
   "releaseDate": "14 de noviembre de 2026",
   "changelog": [
-    "Nueva mejora en Ui: Update font family to Newsreader for headers. Replace the default serif stack with the Newsreader font to improve typography for the user display name in the vault view."
+    "Nueva mejora en Profile: Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
   ],
   "mandatory": false
 }
