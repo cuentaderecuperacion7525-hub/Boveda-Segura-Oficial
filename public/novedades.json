@@ -4,14 +4,14 @@
   "novedades": [
     {
       "titulo": "Compilación",
-      "descripcion": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
+      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
     }
   ],
   "cambios": [
     {
       "titulo": "Compilación",
-      "texto": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment.",
-      "descripcion": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
+      "texto": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow.",
+      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
     }
   ]
 }

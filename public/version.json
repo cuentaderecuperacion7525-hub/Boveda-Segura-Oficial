@@ -1,19 +1,19 @@
 {
-  "version": "1.0.26",
-  "version_name": "1.0.26",
-  "buildNumber": 2026,
-  "version_code": 2026,
+  "version": "1.0.27",
+  "version_name": "1.0.27",
+  "buildNumber": 2027,
+  "version_code": 2027,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "fecha": "2026-11-14",
   "novedades": [
     {
       "titulo": "Compilación",
-      "descripcion": "Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
+      "descripcion": "Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
     }
   ],
   "releaseDate": "14 de noviembre de 2026",
   "changelog": [
-    "Compilación: Update web assets for core plugins. Refactor and update web implementations for App, Filesystem, and Auth plugins to improve cross-platform compatibility and stability within the secure vault environment."
+    "Compilación: Update web assets and refine UI components. Upgrade to version 1.0.26, incorporating refactored web implementations for core plugins (App, Filesystem, Auth) to enhance cross-platform stability. Additionally, adjust font size logic for user initials in the vault views to prevent overflow."
   ],
   "mandatory": false
 }
