@@ -565,7 +565,7 @@ export default function App() {
       await signOutFromFirebase();
       await clearVaultDatabase();
       await disableBiometrics();
-      await disableRecoveryKey();
+      await disableRecoveryKey(true);
       await clearDuressPinHash();
       await clearAllStoredLocalBackups();
       localStorage.removeItem('vault_initialized');

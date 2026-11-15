@@ -4,6 +4,7 @@
  */
 
 import { hexToBuf } from '../crypto/vaultCrypto';
+import { exportExtraPinConfig, importExtraPinConfig } from '../services/extraPinFolderService';
 
 export type VaultItemCategory = 'photo' | 'video' | 'audio' | 'app' | 'document';
 
@@ -780,7 +781,9 @@ export async function exportEncryptedBackupBlob(
     video: getSafeFolders('video'),
     audio: getSafeFolders('audio'),
     app: getSafeFolders('app'),
+    document: getSafeFolders('document'),
   };
+  const extraPinConfig = exportExtraPinConfig();
 
   blobParts.push('{\n');
   blobParts.push('  "version": 3,\n');
@@ -790,6 +793,9 @@ export async function exportEncryptedBackupBlob(
   blobParts.push(`  "testIvHex": ${JSON.stringify(testIvHex)},\n`);
   blobParts.push(`  "testCipherHex": ${JSON.stringify(testCipherHex)},\n`);
   blobParts.push(`  "customFolders": ${JSON.stringify(customFolders)},\n`);
+  if (extraPinConfig) {
+    blobParts.push(`  "extraPinConfig": ${JSON.stringify(extraPinConfig)},\n`);
+  }
   blobParts.push('  "items": [\n');
 
   // Pre-flight key list query (uses very little memory)
@@ -833,7 +839,13 @@ export async function exportEncryptedBackupBlob(
       // IMMEDIATELY dereference raw.data to free binary memory from V8 heap
       raw.data = null;
 
-      const itemObj = {
+      let thumbnailBase64: string | undefined;
+      if (raw.thumbnailData) {
+        thumbnailBase64 = await arrayBufferToBase64Async(raw.thumbnailData);
+        raw.thumbnailData = null;
+      }
+
+      const itemObj: Record<string, any> = {
         id: raw.id,
         timestamp: raw.timestamp || Date.now(),
         name,
@@ -845,6 +857,24 @@ export async function exportEncryptedBackupBlob(
         isFavorite: !!raw.isFavorite,
         category,
       };
+
+      if (typeof raw.lastModified === 'number') {
+        itemObj.lastModified = raw.lastModified;
+      }
+      if (typeof raw.deletedAt === 'number') {
+        itemObj.deletedAt = raw.deletedAt;
+      }
+      if (typeof raw.duration === 'number') {
+        itemObj.duration = raw.duration;
+      }
+      if (thumbnailBase64) {
+        itemObj.thumbnailBase64 = thumbnailBase64;
+      }
+      if (raw.thumbnailIv) {
+        itemObj.thumbnailIv = Array.isArray(raw.thumbnailIv)
+          ? raw.thumbnailIv
+          : Array.from(raw.thumbnailIv);
+      }
 
       if (!firstItem) {
         blobParts.push(',\n');
@@ -979,6 +1009,7 @@ export interface BackupHeaderInfo {
   testIvHex?: string;
   testCipherHex?: string;
   customFolders?: any;
+  extraPinConfig?: { salt?: string; hash?: string } | null;
   hasItems: boolean;
 }
 
@@ -1002,6 +1033,14 @@ export async function readBackupHeaderFromBlob(blob: Blob): Promise<BackupHeader
     } catch {}
   }
 
+  let extraPinConfig: { salt?: string; hash?: string } | null = null;
+  const extraPinMatch = headerText.match(/"extraPinConfig"\s*:\s*(\{[^}]+\})/s);
+  if (extraPinMatch) {
+    try {
+      extraPinConfig = JSON.parse(extraPinMatch[1]);
+    } catch {}
+  }
+
   const hasItems = /"items"\s*:\s*\[|"photos"\s*:\s*\[|"data"\s*:\s*\[|"records"\s*:\s*\[|^\s*\[/m.test(headerText);
 
   return {
@@ -1009,6 +1048,7 @@ export async function readBackupHeaderFromBlob(blob: Blob): Promise<BackupHeader
     testIvHex: ivMatch?.[1],
     testCipherHex: cipherMatch?.[1],
     customFolders,
+    extraPinConfig,
     hasItems,
   };
 }
@@ -1059,7 +1099,12 @@ export async function importEncryptedBackupBlobStream(
       if (Array.isArray(header.customFolders.video)) localStorage.setItem('vault_subfolders_video', JSON.stringify(header.customFolders.video));
       if (Array.isArray(header.customFolders.audio)) localStorage.setItem('vault_subfolders_audio', JSON.stringify(header.customFolders.audio));
       if (Array.isArray(header.customFolders.app)) localStorage.setItem('vault_subfolders_app', JSON.stringify(header.customFolders.app));
+      if (Array.isArray(header.customFolders.document)) localStorage.setItem('vault_subfolders_document', JSON.stringify(header.customFolders.document));
     } catch {}
+  }
+
+  if (header.extraPinConfig) {
+    importExtraPinConfig(header.extraPinConfig);
   }
 
   const db = await openVaultDatabase();
@@ -1146,6 +1191,24 @@ export async function importEncryptedBackupBlobStream(
       isFavorite: !!item.isFavorite,
       category,
     };
+
+    if (typeof item.lastModified === 'number') {
+      record.lastModified = item.lastModified;
+    }
+    if (typeof item.deletedAt === 'number') {
+      record.deletedAt = item.deletedAt;
+    }
+    if (typeof item.duration === 'number') {
+      record.duration = item.duration;
+    }
+    if (typeof item.thumbnailBase64 === 'string' && item.thumbnailBase64.length > 0) {
+      record.thumbnailData = base64ToArrayBuffer(item.thumbnailBase64);
+    }
+    if (Array.isArray(item.thumbnailIv)) {
+      record.thumbnailIv = item.thumbnailIv;
+    } else if (item.thumbnailIv && typeof item.thumbnailIv === 'object') {
+      record.thumbnailIv = Object.values(item.thumbnailIv).map(Number);
+    }
 
     pendingBatch.push(record);
     count++;

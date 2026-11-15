@@ -54,6 +54,7 @@ interface VaultItemViewerModalProps {
   allItems: DecryptedVaultItem[];
   onClose: () => void;
   onDelete: (id: string) => Promise<void>;
+  onExportRemove?: (id: string) => Promise<void>;
   onToggleFavorite: (id: string, isFav: boolean) => Promise<void>;
   onRenameItem?: (id: string, newName: string) => Promise<void>;
   onMoveItem?: (id: string, targetFolder: string) => Promise<void>;
@@ -69,6 +70,7 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
   allItems,
   onClose,
   onDelete,
+  onExportRemove,
   onToggleFavorite,
   onRenameItem,
   onMoveItem,
@@ -669,7 +671,11 @@ export const PhotoViewerModal: React.FC<VaultItemViewerModalProps> = ({
       if (isAudio) {
         vaultAudioEngine.stopAndRevoke();
       }
-      await onDelete(activeItem.id);
+      if (onExportRemove) {
+        await onExportRemove(activeItem.id);
+      } else {
+        await onDelete(activeItem.id);
+      }
 
       setExportProgress(100);
       setExportStage('¡Listo! Guardado en tu galería');

@@ -69,7 +69,7 @@ import {
   parseWithAutoRepair,
   clearVaultDatabase,
   getAllEncryptedItems,
-  saveEncryptedItems,
+  saveEncryptedItem,
   EncryptedVaultItem,
   getTrashItems,
   getTrashStats,
@@ -602,30 +602,26 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       const newDerivedKey = await deriveKeyFromPin(newPin, newSalt);
       const newVerification = await createVerificationPayload(newDerivedKey);
 
-      // Re-encrypt all items in IndexedDB (including Recycle Bin) from testKey to newDerivedKey
+      // Re-encrypt all items in IndexedDB (including Recycle Bin) sequentially to avoid RAM spikes
       try {
         const allItems = await getAllEncryptedItems(true);
-        const updatedItems: EncryptedVaultItem[] = [];
         for (const item of allItems) {
           try {
             const isUnencrypted = !item.iv || item.iv.length === 0 || checkIsUnencryptedMedia(item.data);
             const decrypted = isUnencrypted ? item.data : await decryptBuffer(item.data, item.iv, testKey);
             const reEncrypted = await encryptBuffer(decrypted, newDerivedKey);
-            updatedItems.push({
+            await saveEncryptedItem({
               ...item,
               iv: reEncrypted.iv,
               data: reEncrypted.data,
             });
           } catch (itemErr) {
             console.warn(`Could not re-encrypt item ${item.id} during PIN change:`, itemErr);
-            updatedItems.push(item);
           }
-        }
-        if (updatedItems.length > 0) {
-          await saveEncryptedItems(updatedItems);
+          await new Promise((r) => setTimeout(r, 0));
         }
       } catch (reErr) {
-        console.warn('Error during batch item re-encryption on PIN change:', reErr);
+        console.warn('Error during item re-encryption on PIN change:', reErr);
       }
 
       localStorage.setItem('vault_salt', bufToHex(newSalt));
@@ -640,7 +636,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
       await updateBiometricPinIfEnrolled(newPin);
       await rebindRecoveryKeyToNewMasterKey(testKey, newDerivedKey);
 
-      onMasterKeyUpdated(newDerivedKey);
+      onMasterKeyUpdated(newDerivedKey, newPin);
 
       setPinChangeSuccess(true);
       setCurrentPin('');
@@ -1105,7 +1101,7 @@ export const SettingsVaultView: React.FC<SettingsVaultViewProps> = ({
             sessionStorage.clear();
           } catch {}
           disableBiometrics();
-          disableRecoveryKey();
+          disableRecoveryKey(true);
           clearDuressPinHash();
           localStorage.removeItem('vault_salt');
           localStorage.removeItem('vault_test_iv');

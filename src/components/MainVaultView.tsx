@@ -1406,6 +1406,13 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
     }
   };
 
+  // Retiro definitivo de la bóveda al sacar un archivo de regreso al dispositivo
+  const handleExportRemoveItem = async (id: string) => {
+    await deleteMultipleEncryptedItems([id]);
+    setItems((prev) => prev.filter((p) => p.id !== id));
+    setActiveViewerItem(null);
+  };
+
   const handleToggleFavorite = async (id: string, isFav: boolean) => {
     await updateItemMetadata(id, { isFavorite: isFav });
     setItems((prev) =>
@@ -4315,6 +4322,7 @@ export const MainVaultView: React.FC<MainVaultViewProps> = ({
           allItems={filteredItems}
           onClose={() => setActiveViewerItem(null)}
           onDelete={handleDeleteItem}
+          onExportRemove={handleExportRemoveItem}
           onToggleFavorite={handleToggleFavorite}
           onRenameItem={handleRenameSingleItem}
           onMoveItem={handleMoveSingleItem}

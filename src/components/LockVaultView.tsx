@@ -646,7 +646,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
   // Keyboard listener for desktop users
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (showForgotModal || remainingLockout > 0) return;
+      if (showForgotModal || showEnrollBioModal || authViewMode !== 'keypad' || remainingLockout > 0) return;
 
       if (e.key >= '0' && e.key <= '9') {
         if (pin.length < expectedLength) {
@@ -667,7 +667,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pin, expectedLength, attemptUnlock, showForgotModal]);
+  }, [pin, expectedLength, attemptUnlock, showForgotModal, showEnrollBioModal, authViewMode, remainingLockout]);
 
   const handleKeypadChange = (newPin: string) => {
     if (isVerifying || isUnlockingRef.current || remainingLockout > 0) return;
@@ -750,7 +750,13 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
     let bioDebounceTimeout: any = null;
     let lastAutoTriggerTime = 0;
 
+    const showForgotModalRef = useRef(showForgotModal);
+    showForgotModalRef.current = showForgotModal;
+    const showEnrollBioModalRef = useRef(showEnrollBioModal);
+    showEnrollBioModalRef.current = showEnrollBioModal;
+
     const triggerAutoBiometrics = async (forceFresh = false) => {
+      if (showForgotModalRef.current || showEnrollBioModalRef.current) return;
       const lockoutUntil = Number(localStorage.getItem('nullvault_lockout_until') || '0');
       if (lockoutUntil > Date.now()) return;
       if (!isBiometricsAutoPromptEnabled()) return;
@@ -800,6 +806,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
 
     const handleResumeOrVisible = () => {
       if (document.visibilityState === 'visible') {
+        if (showForgotModalRef.current || showEnrollBioModalRef.current) return;
         setPin('');
         setErrorMessage(null);
         clearTimeout(bioDebounceTimeout);
@@ -860,7 +867,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
       setIsBioEnrolled(true);
       setShowEnrollBioModal(false);
       showToast('¡Sensor de huella vinculado con éxito!', 'success');
-      onUnlock(testKey);
+      onUnlock(testKey, enrollPin);
     } catch (err: any) {
       console.error('Error enrolling biometrics:', err);
       if (err?.name === 'NotAllowedError') {

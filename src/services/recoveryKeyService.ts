@@ -13,7 +13,7 @@ import {
   decryptBuffer,
   checkIsUnencryptedMedia,
 } from '../crypto/vaultCrypto';
-import { getAllEncryptedItems, saveEncryptedItems } from '../db/vaultDb';
+import { getAllEncryptedItems, saveEncryptedItem } from '../db/vaultDb';
 import { updateBiometricPinIfEnrolled } from './biometricService';
 import { NativeVaultMedia } from './nativeVaultBridge';
 
@@ -27,6 +27,10 @@ const STORAGE_CREATED_AT = 'vault_recovery_key_created_at';
 const STORAGE_WRAP_ESCROW_DATA = 'vault_recovery_wrap_escrow_data';
 const STORAGE_WRAP_ESCROW_IV = 'vault_recovery_wrap_escrow_iv';
 const STORAGE_INTERNAL_ESCROW_SECRET = 'vault_internal_email_escrow_secret';
+const STORAGE_EMAIL_ESCROW_CONFIGURED = 'vault_email_escrow_configured';
+const STORAGE_EMAIL_ESCROW_SALT = 'vault_email_escrow_salt';
+const STORAGE_EMAIL_ESCROW_WRAPPED_IV = 'vault_email_escrow_wrapped_iv';
+const STORAGE_EMAIL_ESCROW_WRAPPED_KEY = 'vault_email_escrow_wrapped_data';
 
 const RECOVERY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars, excludes 0, O, 1, I
 const RECOVERY_KEY_LENGTH = 16;
@@ -85,7 +89,7 @@ export function isRecoveryKeyConfigured(): boolean {
 /**
  * Disables and clears the configured recovery key
  */
-export function disableRecoveryKey(): void {
+export function disableRecoveryKey(clearEmailEscrow: boolean = false): void {
   try {
     localStorage.removeItem(STORAGE_CONFIGURED);
     localStorage.removeItem(STORAGE_WRAPPED_KEY);
@@ -96,7 +100,14 @@ export function disableRecoveryKey(): void {
     localStorage.removeItem(STORAGE_CREATED_AT);
     localStorage.removeItem(STORAGE_WRAP_ESCROW_DATA);
     localStorage.removeItem(STORAGE_WRAP_ESCROW_IV);
-    localStorage.removeItem(STORAGE_INTERNAL_ESCROW_SECRET);
+
+    if (clearEmailEscrow) {
+      localStorage.removeItem(STORAGE_INTERNAL_ESCROW_SECRET);
+      localStorage.removeItem(STORAGE_EMAIL_ESCROW_CONFIGURED);
+      localStorage.removeItem(STORAGE_EMAIL_ESCROW_SALT);
+      localStorage.removeItem(STORAGE_EMAIL_ESCROW_WRAPPED_IV);
+      localStorage.removeItem(STORAGE_EMAIL_ESCROW_WRAPPED_KEY);
+    }
   } catch (err) {
     console.error('Error disabling recovery key:', err);
   }
@@ -318,29 +329,24 @@ export async function executePinResetWithRecoveryKey(
     const newSalt = generateSalt();
     const newMasterKey = await deriveKeyFromPin(newPin, newSalt);
 
-    // 3. Re-encrypt all items in IndexedDB (including Recycle Bin) from original master key to new master key
+    // 3. Re-encrypt all items in IndexedDB (including Recycle Bin) one-by-one to prevent RAM spikes
     if (originalMasterKey) {
       const allItems = await getAllEncryptedItems(true);
-      const updatedItems = [];
 
       for (const item of allItems) {
         try {
           const isUnencrypted = !item.iv || item.iv.length === 0 || checkIsUnencryptedMedia(item.data);
           const decrypted = isUnencrypted ? item.data : await decryptBuffer(item.data, item.iv, originalMasterKey);
           const reEncrypted = await encryptBuffer(decrypted, newMasterKey);
-          updatedItems.push({
+          await saveEncryptedItem({
             ...item,
             iv: reEncrypted.iv,
             data: reEncrypted.data,
           });
         } catch (itemErr) {
           console.warn(`Could not re-encrypt item ${item.id}:`, itemErr);
-          updatedItems.push(item);
         }
-      }
-
-      if (updatedItems.length > 0) {
-        await saveEncryptedItems(updatedItems);
+        await new Promise((r) => setTimeout(r, 0));
       }
     }
 
@@ -358,8 +364,9 @@ export async function executePinResetWithRecoveryKey(
       sessionStorage.removeItem('vault_is_duress_mode');
     } catch {}
 
-    // 6. Keep the recovery escrow active and wrapped for the new master key
+    // 6. Keep both manual recovery escrow and automatic email escrow active for the new master key
     await backupMasterKeyWithRecoveryKey(newMasterKey, recoveryKey);
+    await setupAutomaticEmailRecoveryEscrow(newMasterKey);
 
     // 7. Synchronize biometric credentials if enrolled
     await updateBiometricPinIfEnrolled(newPin);
@@ -446,10 +453,38 @@ INSTRUCCIONES IMPORTANTES:
   URL.revokeObjectURL(url);
 }
 
+async function unwrapMasterKeyFromEscrow(
+  secret: string,
+  saltHex: string,
+  ivHex: string,
+  wrappedHex: string
+): Promise<CryptoKey | null> {
+  try {
+    const normalized = normalizeRecoveryKey(secret);
+    if (normalized.length !== 16) return null;
+
+    const salt = hexToBuf(saltHex);
+    const iv = Array.from(hexToBuf(ivHex));
+    const encryptedBuf = hexToBuf(wrappedHex);
+    const encryptedData = encryptedBuf.buffer.slice(
+      encryptedBuf.byteOffset,
+      encryptedBuf.byteOffset + encryptedBuf.byteLength
+    ) as ArrayBuffer;
+
+    const secretPhrase = `VAULT_ESCROW::${normalized}::AES256_V1`;
+    const wrapKey = await deriveRecoveryWrapKey(secretPhrase, salt);
+    const rawMaster = await decryptBuffer(encryptedData, iv, wrapKey);
+    return await importMasterKeyRaw(rawMaster);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Configura automáticamente en segundo plano un respaldo criptográfico interno de la clave maestra
+ * en claves dedicadas (independientes de la clave manual de 16 caracteres)
  * para permitir que el usuario pueda restablecer su PIN verificando su correo electrónico
- * sin necesidad de guardar manualmente una clave de 16 caracteres y sin perder fotos ni videos.
+ * sin invalidar su clave manual y sin perder fotos ni videos.
  */
 export async function setupAutomaticEmailRecoveryEscrow(masterKey: CryptoKey): Promise<void> {
   try {
@@ -458,7 +493,18 @@ export async function setupAutomaticEmailRecoveryEscrow(masterKey: CryptoKey): P
       internalSecret = generateRecoveryKey();
       localStorage.setItem(STORAGE_INTERNAL_ESCROW_SECRET, internalSecret);
     }
-    await backupMasterKeyWithRecoveryKey(masterKey, internalSecret);
+
+    const normalized = normalizeRecoveryKey(internalSecret);
+    const rawMaster = await exportMasterKeyRaw(masterKey);
+    const salt = generateSalt();
+    const secretPhrase = `VAULT_ESCROW::${normalized}::AES256_V1`;
+    const wrapKey = await deriveRecoveryWrapKey(secretPhrase, salt);
+    const encrypted = await encryptBuffer(rawMaster, wrapKey);
+
+    localStorage.setItem(STORAGE_EMAIL_ESCROW_SALT, bufToHex(salt));
+    localStorage.setItem(STORAGE_EMAIL_ESCROW_WRAPPED_IV, bufToHex(new Uint8Array(encrypted.iv)));
+    localStorage.setItem(STORAGE_EMAIL_ESCROW_WRAPPED_KEY, bufToHex(new Uint8Array(encrypted.data)));
+    localStorage.setItem(STORAGE_EMAIL_ESCROW_CONFIGURED, 'true');
   } catch (err) {
     console.warn('Error setting up automatic email recovery escrow:', err);
   }
@@ -474,17 +520,71 @@ export async function executePinResetAfterEmailVerified(
 ): Promise<{ success: boolean; masterKey: CryptoKey; error?: string }> {
   try {
     const internalSecret = localStorage.getItem(STORAGE_INTERNAL_ESCROW_SECRET);
-    if (internalSecret && normalizeRecoveryKey(internalSecret).length === 16 && isRecoveryKeyConfigured()) {
-      const res = await executePinResetWithRecoveryKey(internalSecret, newPin);
-      if (res.success && res.masterKey) {
-        await setupAutomaticEmailRecoveryEscrow(res.masterKey);
-        return res;
+    let originalMasterKey: CryptoKey | null = null;
+
+    if (internalSecret && normalizeRecoveryKey(internalSecret).length === 16) {
+      // 1. Intentar desde las claves dedicadas de respaldo por correo
+      const emailSaltHex = localStorage.getItem(STORAGE_EMAIL_ESCROW_SALT);
+      const emailIvHex = localStorage.getItem(STORAGE_EMAIL_ESCROW_WRAPPED_IV);
+      const emailWrappedHex = localStorage.getItem(STORAGE_EMAIL_ESCROW_WRAPPED_KEY);
+
+      if (emailSaltHex && emailIvHex && emailWrappedHex) {
+        originalMasterKey = await unwrapMasterKeyFromEscrow(
+          internalSecret,
+          emailSaltHex,
+          emailIvHex,
+          emailWrappedHex
+        );
+      }
+
+      // 2. Fallback de compatibilidad para versiones anteriores donde se compartían claves
+      if (!originalMasterKey) {
+        const legacySaltHex = localStorage.getItem(STORAGE_SALT);
+        const legacyIvHex = localStorage.getItem(STORAGE_WRAPPED_IV);
+        const legacyWrappedHex = localStorage.getItem(STORAGE_WRAPPED_KEY);
+        if (legacySaltHex && legacyIvHex && legacyWrappedHex) {
+          originalMasterKey = await unwrapMasterKeyFromEscrow(
+            internalSecret,
+            legacySaltHex,
+            legacyIvHex,
+            legacyWrappedHex
+          );
+        }
       }
     }
 
-    // Si la bóveda no tenía el secreto interno pero se puede derivar un nuevo PIN sin perder estructura
+    const allItems = await getAllEncryptedItems(true);
+
+    if (!originalMasterKey && allItems.length > 0) {
+      return {
+        success: false,
+        masterKey: null as any,
+        error:
+          'No se encontró el respaldo criptográfico para re-cifrar tus archivos existentes. Usa tu clave de recuperación manual de 16 caracteres o restaura una copia de seguridad.',
+      };
+    }
+
     const newSalt = generateSalt();
     const newMasterKey = await deriveKeyFromPin(newPin, newSalt);
+
+    if (originalMasterKey) {
+      for (const item of allItems) {
+        try {
+          const isUnencrypted = !item.iv || item.iv.length === 0 || checkIsUnencryptedMedia(item.data);
+          const decrypted = isUnencrypted ? item.data : await decryptBuffer(item.data, item.iv, originalMasterKey);
+          const reEncrypted = await encryptBuffer(decrypted, newMasterKey);
+          await saveEncryptedItem({
+            ...item,
+            iv: reEncrypted.iv,
+            data: reEncrypted.data,
+          });
+        } catch (itemErr) {
+          console.warn(`Could not re-encrypt item ${item.id} on email PIN reset:`, itemErr);
+        }
+        await new Promise((r) => setTimeout(r, 0));
+      }
+    }
+
     const newVerification = await createVerificationPayload(newMasterKey);
 
     localStorage.setItem('vault_salt', bufToHex(newSalt));
@@ -498,6 +598,9 @@ export async function executePinResetAfterEmailVerified(
     } catch {}
 
     await setupAutomaticEmailRecoveryEscrow(newMasterKey);
+    if (originalMasterKey) {
+      await rebindRecoveryKeyToNewMasterKey(originalMasterKey, newMasterKey);
+    }
     await updateBiometricPinIfEnrolled(newPin);
 
     return {

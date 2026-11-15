@@ -267,6 +267,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } catch (err) {
           console.error('Error re-encrypting photo:', err);
         }
+        await new Promise((r) => setTimeout(r, 0));
       }
 
       // 4. Create new verification payload
@@ -286,7 +287,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       await updateBiometricPinIfEnrolled(newPin);
       await rebindRecoveryKeyToNewMasterKey(testCurrentKey, newKey);
 
-      onMasterKeyUpdated(newKey);
+      onMasterKeyUpdated(newKey, newPin);
       setPinChangeSuccess(true);
       setCurrentPin('');
       setNewPin('');

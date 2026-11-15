@@ -28,6 +28,8 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
       setMode(initialMode);
     }
   }, [isOpen, initialMode]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const isMountedOpenRef = useRef<boolean>(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [hasCameraError, setHasCameraError] = useState(false);
@@ -55,6 +57,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   }, [isOpen]);
 
   useEffect(() => {
+    isMountedOpenRef.current = isOpen;
     if (!isOpen) {
       stopCamera();
       resetCaptures();
@@ -64,6 +67,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     startCamera(facingMode);
 
     return () => {
+      isMountedOpenRef.current = false;
       stopCamera();
     };
   }, [isOpen, facingMode]);
@@ -76,10 +80,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    const activeStream = streamRef.current || stream;
+    if (activeStream) {
+      activeStream.getTracks().forEach((track) => track.stop());
     }
+    streamRef.current = null;
+    setStream(null);
   };
 
   const resetCaptures = () => {
@@ -90,6 +96,18 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     setTempBuffer(null);
     setIsRecording(false);
     setRecordingSeconds(0);
+  };
+
+  const applyCameraStream = (newStream: MediaStream) => {
+    if (!isMountedOpenRef.current) {
+      newStream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    streamRef.current = newStream;
+    setStream(newStream);
+    if (videoRef.current) {
+      videoRef.current.srcObject = newStream;
+    }
   };
 
   const startCamera = async (fMode: 'user' | 'environment') => {
@@ -106,10 +124,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         audio: true, // For videos
       });
 
-      setStream(newStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
-      }
+      applyCameraStream(newStream);
     } catch {
       // Try again without audio if audio permissions failed
       try {
@@ -121,13 +136,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           },
           audio: false,
         });
-        setStream(videoOnlyStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = videoOnlyStream;
-        }
+        applyCameraStream(videoOnlyStream);
       } catch (err) {
         console.warn('Camera access denied:', err);
-        setHasCameraError(true);
+        if (isMountedOpenRef.current) {
+          setHasCameraError(true);
+        }
       }
     }
   };
@@ -226,7 +240,9 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     setIsSaving(true);
     try {
       const isVideoType = mode === 'video' || capturedMime.startsWith('video');
-      const ext = isVideoType ? 'mp4' : 'jpg';
+      const ext = isVideoType
+        ? (capturedMime.toLowerCase().includes('mp4') ? 'mp4' : 'webm')
+        : 'jpg';
       const filename = `${isVideoType ? 'video' : 'foto'}_camara_${Date.now()}.${ext}`;
       await onMediaCaptured(tempBuffer, capturedMime, filename);
       showToast(isVideoType ? 'Video cifrado y guardado con éxito' : 'Foto cifrada y guardada con éxito', 'success');

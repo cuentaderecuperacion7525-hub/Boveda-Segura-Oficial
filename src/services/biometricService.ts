@@ -316,6 +316,7 @@ export async function enrollBiometrics(pin: string): Promise<boolean> {
 // Mutex to strictly prevent concurrent or duplicated biometric authentication calls
 let activeBiometricAuthPromise: Promise<string> | null = null;
 let currentBioAbortController: AbortController | null = null;
+let activeBioRequestId = 0;
 
 /**
  * Triggers the native Android fingerprint prompt and, upon successful touch, returns the decrypted PIN.
@@ -337,10 +338,11 @@ export async function authenticateWithBiometrics(forceFresh = false): Promise<st
     return activeBiometricAuthPromise;
   }
 
+  const requestId = ++activeBioRequestId;
   const abortCtrl = new AbortController();
   currentBioAbortController = abortCtrl;
 
-  activeBiometricAuthPromise = (async () => {
+  const currentPromise = (async () => {
     if (typeof window !== 'undefined') {
       (window as any).__isBiometricPromptActive = true;
     }
@@ -476,19 +478,21 @@ export async function authenticateWithBiometrics(forceFresh = false): Promise<st
 
       return new TextDecoder().decode(decryptedBytes);
     } finally {
-      if (typeof window !== 'undefined') {
-        (window as any).__isBiometricPromptActive = false;
-        (window as any).__lastBiometricPromptFinishedAt = Date.now();
+      if (activeBioRequestId === requestId) {
+        if (typeof window !== 'undefined') {
+          (window as any).__isBiometricPromptActive = false;
+          (window as any).__lastBiometricPromptFinishedAt = Date.now();
+        }
+        if (currentBioAbortController === abortCtrl) {
+          currentBioAbortController = null;
+        }
+        activeBiometricAuthPromise = null;
       }
-      // Clear mutex and controller on finish
-      if (currentBioAbortController === abortCtrl) {
-        currentBioAbortController = null;
-      }
-      activeBiometricAuthPromise = null;
     }
   })();
 
-  return activeBiometricAuthPromise;
+  activeBiometricAuthPromise = currentPromise;
+  return currentPromise;
 }
 
 /**
