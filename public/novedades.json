@@ -3,15 +3,15 @@
   "releaseDate": "14 de noviembre de 2026",
   "novedades": [
     {
-      "titulo": "Nueva mejora en Profile",
-      "descripcion": "Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
+      "titulo": "Diseño e interfaz",
+      "descripcion": "Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
     }
   ],
   "cambios": [
     {
-      "titulo": "Nueva mejora en Profile",
-      "texto": "Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars.",
-      "descripcion": "Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
+      "titulo": "Diseño e interfaz",
+      "texto": "Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment.",
+      "descripcion": "Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
     }
   ]
 }

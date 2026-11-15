@@ -1,19 +1,19 @@
 {
-  "version": "1.0.31",
-  "version_name": "1.0.31",
-  "buildNumber": 2031,
-  "version_code": 2031,
+  "version": "1.0.32",
+  "version_name": "1.0.32",
+  "buildNumber": 2032,
+  "version_code": 2032,
   "download_url": "https://github.com/cuentaderecuperacion7525-hub/Boveda-Segura-Oficial/releases/latest/download/Boveda-Calculadora.apk",
   "fecha": "2026-11-14",
   "novedades": [
     {
-      "titulo": "Nueva mejora en Profile",
-      "descripcion": "Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
+      "titulo": "Diseño e interfaz",
+      "descripcion": "Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
     }
   ],
   "releaseDate": "14 de noviembre de 2026",
   "changelog": [
-    "Nueva mejora en Profile: Clear Google avatar on name change. Automatically reset the profile photo URL when the user manually updates their name, preventing mismatched Google-hosted avatars."
+    "Diseño e interfaz: Adjust layout for vault access links. Increase vertical spacing and add padding to the forgot password and registration links for improved touch targeting and visual alignment."
   ],
   "mandatory": false
 }
