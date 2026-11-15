@@ -1109,14 +1109,14 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
             )}
 
             {/* Debajo de los botones, dos enlaces subrayados, centrados, del mismo tamaño (14 px) y en azul marino #0E1940 */}
-            <div className="mt-2 flex flex-col items-center justify-center gap-1.5">
+            <div className="mt-3 flex flex-col items-center justify-center gap-4">
               <a
                 href="#"
                 onClick={(e) => {
                   e.preventDefault();
                   handleOpenForgotPin();
                 }}
-                className="inline-flex items-center justify-center text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
+                className="inline-flex items-center justify-center py-1 px-3 text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
                 style={{
                   color: '#0E1940',
                   fontSize: '14px',
@@ -1137,7 +1137,7 @@ export const LockVaultView: React.FC<LockVaultViewProps> = ({
                     onResetVaultRequest();
                   }
                 }}
-                className="inline-flex items-center justify-center text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
+                className="inline-flex items-center justify-center py-1 px-3 text-[14px] font-normal underline text-[#0E1940] hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0E1940] focus:ring-offset-2 rounded"
                 style={{
                   color: '#0E1940',
                   fontSize: '14px',
